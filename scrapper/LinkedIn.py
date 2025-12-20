@@ -4,7 +4,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from checkpoint_manager import CheckpointManager, LinkedInCheckpoint, get_resume_info
 import json
 import os
 from datetime import date
@@ -14,7 +13,7 @@ import builtins
 import signal
 import time
 import hashlib
-import random
+from checkpoint_manager import CheckpointManager, LinkedInCheckpoint, get_resume_info
 
 # Colores ANSI - Azul para LinkedIn
 BLUE = '\033[0;34m'
@@ -28,42 +27,41 @@ builtins.print = print
 
 parser = argparse.ArgumentParser(description='Script de scraping para LinkedIn Jobs Argentina')
 parser.add_argument('--debug', action='store_true', help='Activar mensajes de debug')
-parser.add_argument('--start-from', type=str, help='Iniciar desde una categoría específica')
+parser.add_argument('--start-from', type=str, help='Iniciar desde una categorÃ­a especÃ­fica')
 args = parser.parse_args()
 
 def debug_print(*mensaje, **kwargs):
     if args.debug:
         _original_print(f"{BLUE}{' '.join(map(str, mensaje))}{RESET}", **kwargs)
 
-# LinkedIn Job Functions - Using numerical codes from LinkedIn's official reference
-# Source: https://support.captaindata.co/hc/en-us/articles/19832314901917
+# LinkedIn Job Functions
 AREAS = {
-    "accounting": "1",
-    "administrative": "2",
-    "arts-and-design": "3",
-    "business-development": "4",
-    "community-and-social-services": "5",
-    "consulting": "6",
-    "education": "7",
-    "engineering": "8",
-    "entrepreneurship": "9",
-    "finance": "10",
-    "healthcare-services": "11",
-    "human-resources": "12",
-    "information-technology": "13",
-    "legal": "14",
-    "marketing": "15",
-    "media-and-communication": "16",
-    "military-and-protective-services": "17",
-    "operations": "18",
-    "product-management": "19",
-    "program-and-project-management": "20",
-    "purchasing": "21",
-    "quality-assurance": "22",
-    "real-estate": "23",
-    "research": "24",
-    "sales": "25",
-    "support": "26",
+    "accounting": "acct",
+    "administrative": "adm",
+    "arts-design": "art",
+    "business-development": "bd",
+    "community-social-services": "css",
+    "consulting": "cns",
+    "education": "edu",
+    "engineering": "eng",
+    "entrepreneurship": "ent",
+    "finance": "fin",
+    "healthcare-services": "hea",
+    "human-resources": "hr",
+    "information-technology": "it",
+    "legal": "lgl",
+    "marketing": "mrkt",
+    "media-communications": "med",
+    "military-protective-services": "mil",
+    "operations": "ops",
+    "product-management": "prdt",
+    "program-project-management": "ppm",
+    "purchasing": "pur",
+    "quality-assurance": "qa",
+    "real-estate": "re",
+    "research": "rsch",
+    "sales": "sales",
+    "support": "sup",
 }
 
 # Global variables
@@ -73,34 +71,35 @@ total_jobs_scraped = 0
 jobs_this_session = 0
 EMPLEOS = []
 HASHES_GLOBALES = set()
-URLS_VISTAS = set()  # Track URLs to avoid re-fetching details
 current_area = ""
 current_area_index = 0
-current_page = 1
+current_page = 0
 areas_completed = set()
 
 def signal_handler(sig, frame):
-    print(f"\n\n Interrupción detectada (CTRL+C)")
-    print(" Guardando checkpoint para poder reanudar...")
+    print(f"\n\nInterrupciÃ³n detectada (CTRL+C)")
+    print("Guardando checkpoint para poder reanudar...")
     
     if checkpoint_manager:
         checkpoint_data = LinkedInCheckpoint.create_checkpoint_data(
             current_area_index, current_page, list(areas_completed), total_jobs_scraped
         )
         checkpoint_manager.save_checkpoint(checkpoint_data)
-        print(" Checkpoint guardado exitosamente")
+        print("Checkpoint guardado exitosamente")
     
     if EMPLEOS:
+        print(f"Guardando {len(EMPLEOS)} empleos pendientes...")
         guardar_datos_incremental(EMPLEOS, current_area)
     
     if driver:
         try:
             driver.quit()
-            print(" Driver cerrado correctamente")
+            print("Driver cerrado correctamente")
         except:
             pass
     
-    print(" Hasta la próxima! Usa el mismo comando para reanudar.")
+    print(f"Total empleos guardados: {total_jobs_scraped}")
+    print("Hasta la prÃ³xima! Usa el mismo comando para reanudar.")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -161,7 +160,7 @@ def verificar_sesion_activa(driver):
 
 def recrear_driver_si_necesario(driver):
     if not verificar_sesion_activa(driver):
-        print("Sesión perdida. Recreando driver...")
+        print("SesiÃ³n perdida. Recreando driver...")
         try:
             driver.quit()
         except:
@@ -169,169 +168,58 @@ def recrear_driver_si_necesario(driver):
         return create_driver()
     return driver
 
-
-def verificar_pagina_existe(driver, area_code, page_num, intentos=3):
-    """
-    Verifica si una página contiene trabajos válidos
-    LinkedIn usa start= para paginación (0, 25, 50, etc.)
-    Usa el endpoint /jobs-guest/jobs/api/seeMoreJobPostings/search para paginación correcta
-    Retorna: (existe, numero_de_trabajos)
-    """
-    start = (page_num - 1) * 25
-    # Usar el endpoint de guest API que sí soporta paginación
-    url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=&location=Argentina&geoId=100446943&f_F={area_code}&start={start}"
+def scroll_and_load_jobs(driver, max_jobs=50):
+    last_count = 0
+    attempts = 0
     
-    for intento in range(intentos):
-        try:
-            driver.get(url)
-            time.sleep(random.uniform(2, 4))
-            
-            # Este endpoint devuelve HTML con <li> elements
-            job_items = driver.find_elements(By.CSS_SELECTOR, 'li')
-            
-            debug_print(f"    Encontrados: {len(job_items)} items")
-            
-            empleos_validos = []
-            
-            for item in job_items:
-                try:
-                    # Buscar el enlace dentro del item
-                    link = item.find_element(By.CSS_SELECTOR, 'a.base-card__full-link')
-                    href = link.get_attribute('href')
-                    
-                    # Un empleo válido debe tener URL de LinkedIn jobs
-                    if href and '/jobs/view/' in href:
-                        empleos_validos.append(href)
-                        debug_print(f"    [OK] Empleo válido: {href[:60]}...")
-                except:
-                    continue
-            
-            num_empleos = len(empleos_validos)
-            
-            if num_empleos > 0:
-                print(f"Página {page_num}: {num_empleos} empleos válidos encontrados")
-                return True, num_empleos
-            else:
-                print(f"Página {page_num}: 0 empleos válidos encontrados")
-                return False, 0
-                
-        except Exception as e:
-            if intento < intentos - 1:
-                debug_print(f"  ! Intento {intento + 1} falló, reintentando...")
-                time.sleep(2)
-                continue
-            else:
-                debug_print(f"  [X] Error verificando página: {str(e)}")
-                print(f"Página {page_num}: Error al verificar")
-                return False, 0
-    
-    return False, 0
-
-
-def obtener_total_paginas(driver, area_code):
-    """
-    Usa búsqueda binaria para encontrar el número total de páginas disponibles
-    Similar a ZonaJobs y Computrabajo
-    """
-    print(f"\nBuscando total de páginas disponibles...")
-    
-    # Verificar primera página
-    existe, num_empleos = verificar_pagina_existe(driver, area_code, 1)
-    if not existe:
-        print("No se encontraron empleos en la primera página")
-        return 0
-
-    # LinkedIn limita a ~40 páginas (1000 resultados)
-    # Fase 1: Verificación rápida de páginas clave
-    debug_print("\nFase 1: Verificando páginas clave...")
-    paginas_prueba = [10, 20, 30, 40]
-    ultima_valida = 1
-    
-    for pagina in paginas_prueba:
-        existe, _ = verificar_pagina_existe(driver, area_code, pagina)
-        if existe:
-            ultima_valida = pagina
-        else:
-            break
-    
-    # Ajustar el rango de búsqueda
-    if ultima_valida == 1:
-        rango_busqueda = 10
-    elif ultima_valida == 10:
-        rango_busqueda = 20
-    elif ultima_valida == 20:
-        rango_busqueda = 30
-    elif ultima_valida == 30:
-        rango_busqueda = 40
-    else:
-        rango_busqueda = 40  # LinkedIn max
-
-    # Fase 2: Búsqueda binaria refinada
-    debug_print("\nFase 2: Búsqueda binaria para encontrar la última página...")
-    left = ultima_valida
-    right = rango_busqueda
-    ultima_pagina_valida = ultima_valida
-    pagina_actual = None
-    
-    while left <= right:
-        mid = (left + right) // 2
-        if pagina_actual == mid:
-            break
-            
-        pagina_actual = mid
-        debug_print(f"\nProbando página {mid}...")
+    while attempts < 15:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
         
-        existe, _ = verificar_pagina_existe(driver, area_code, mid)
-        if existe:
-            ultima_pagina_valida = mid
-            left = mid + 1
-        else:
-            right = mid - 1
-    
-    # Fase 3: Búsqueda secuencial final
-    debug_print("\nFase 3: Búsqueda secuencial final...")
-    pagina = ultima_pagina_valida
-    while pagina < 40:  # LinkedIn limit
-        existe, _ = verificar_pagina_existe(driver, area_code, pagina + 1)
-        if not existe:
-            debug_print(f"Encontrada última página válida: {pagina}")
+        try:
+            btn = driver.find_element(By.CSS_SELECTOR, 'button.infinite-scroller__show-more-button, button[aria-label="Ver mÃ¡s empleos"]')
+            driver.execute_script("arguments[0].click();", btn)
+            time.sleep(2)
+        except:
+            pass
+        
+        jobs = driver.find_elements(By.CSS_SELECTOR, 'div.base-card, div.job-search-card')
+        current_count = len(jobs)
+        
+        debug_print(f"Jobs cargados: {current_count}")
+        
+        if current_count >= max_jobs or current_count == last_count:
             break
-        pagina += 1
-        ultima_pagina_valida = pagina
-
-    print(f"Total de páginas encontradas: {ultima_pagina_valida}")
-    return ultima_pagina_valida
-
+        
+        last_count = current_count
+        attempts += 1
+    
+    return current_count
 
 def extract_job_details(driver, job_url):
-    """Extrae detalles de un empleo"""
     try:
         driver.get(job_url)
-        time.sleep(random.uniform(2, 3))
+        time.sleep(2)
         
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'h1, h2'))
         )
         
-        # Título
         try:
             titulo = driver.find_element(By.CSS_SELECTOR, 'h1.top-card-layout__title, h2.top-card-layout__title, h1').text.strip()
         except:
-            titulo = "Título no disponible"
+            titulo = "TÃ­tulo no disponible"
         
-        # Empresa
         try:
             empresa = driver.find_element(By.CSS_SELECTOR, 'a.topcard__org-name-link, span.topcard__flavor, a[data-tracking-control-name="public_jobs_topcard-org-name"]').text.strip()
         except:
             empresa = "Confidencial"
         
-        # Ubicación
         try:
             ubicacion = driver.find_element(By.CSS_SELECTOR, 'span.topcard__flavor--bullet').text.strip()
         except:
             ubicacion = "Argentina"
         
-        # Expandir descripción
         try:
             show_more = driver.find_element(By.CSS_SELECTOR, 'button.show-more-less-html__button')
             driver.execute_script("arguments[0].click();", show_more)
@@ -339,13 +227,11 @@ def extract_job_details(driver, job_url):
         except:
             pass
         
-        # Descripción
         try:
             descripcion = driver.find_element(By.CSS_SELECTOR, 'div.show-more-less-html__markup, div.description__text').text.strip()
         except:
-            descripcion = "Descripción no disponible"
+            descripcion = "DescripciÃ³n no disponible"
         
-        # Categorías
         categoria_portal = ""
         subcategoria_portal = ""
         try:
@@ -353,7 +239,7 @@ def extract_job_details(driver, job_url):
             for criterio in criterios:
                 header = criterio.find_element(By.CSS_SELECTOR, 'h3').text.strip().lower()
                 value = criterio.find_element(By.CSS_SELECTOR, 'span').text.strip()
-                if 'función' in header or 'function' in header:
+                if 'funciÃ³n' in header or 'function' in header:
                     categoria_portal = value
                 elif 'sector' in header or 'industries' in header:
                     subcategoria_portal = value
@@ -370,115 +256,111 @@ def extract_job_details(driver, job_url):
         }
         
     except Exception as e:
-        debug_print(f"Error extrayendo detalles: {str(e)}")
+        debug_print(f"Error: {str(e)}")
         return None
 
-
-def get_job_urls_from_page(driver, area_code, page_num):
-    """Obtiene todas las URLs de empleos de una página específica usando el guest API"""
-    start = (page_num - 1) * 25
-    # Usar el endpoint de guest API que sí soporta paginación
-    url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=&location=Argentina&geoId=100446943&f_F={area_code}&start={start}"
-    
-    driver.get(url)
-    time.sleep(random.uniform(2, 4))
-    
-    # Este endpoint devuelve HTML con <li> elements
-    job_items = driver.find_elements(By.CSS_SELECTOR, 'li')
+def get_job_urls_from_page(driver):
+    job_cards = driver.find_elements(By.CSS_SELECTOR, 'div.base-card, div.job-search-card')
     job_urls = []
     
-    for item in job_items:
+    for card in job_cards:
         try:
-            link = item.find_element(By.CSS_SELECTOR, 'a.base-card__full-link')
-            href = link.get_attribute('href')
-            if href and '/jobs/view/' in href:
-                # Limpiar URL (quitar parámetros)
-                clean_url = href.split('?')[0]
-                job_urls.append(clean_url)
+            link = card.find_element(By.CSS_SELECTOR, 'a.base-card__full-link, a[data-tracking-control-name="public_jobs_jserp-result_search-card"]')
+            url = link.get_attribute('href')
+            if url and '/jobs/view/' in url:
+                job_urls.append(url.split('?')[0])
         except:
             continue
     
-    # Eliminar duplicados manteniendo orden
     return list(dict.fromkeys(job_urls))
 
+def obtener_total_paginas(driver, area_code):
+    """Estima el total de pÃ¡ginas para un Ã¡rea"""
+    url = f"https://www.linkedin.com/jobs/search/?f_F={area_code}&geoId=100446943&location=Argentina"
+    driver.get(url)
+    time.sleep(3)
+    
+    try:
+        # Buscar el contador de resultados
+        results_text = driver.find_element(By.CSS_SELECTOR, 'span.results-context-header__job-count, div.results-context-header span').text
+        total_jobs = int(''.join(filter(str.isdigit, results_text)))
+        total_pages = (total_jobs // 25) + 1
+        return min(total_pages, 40)  # LinkedIn limit
+    except:
+        return 10  # Default
 
 def scrape_area(driver, area_name, area_code, area_index, total_areas, start_page=1):
-    """Scrapea todos los empleos de un área, página por página"""
-    global total_jobs_scraped, jobs_this_session, EMPLEOS, HASHES_GLOBALES, URLS_VISTAS
-    global current_page, checkpoint_manager
+    global total_jobs_scraped, jobs_this_session, EMPLEOS, HASHES_GLOBALES, current_page
     
     print(f"\n{'='*80}")
-    print(f"PROCESANDO ÁREA {area_index}/{total_areas}: {area_name}")
+    print(f"PROCESANDO Ã�REA {area_index}/{total_areas}: {area_name}")
     print(f"{'='*80}")
     
-    print(f"Analizando área: {area_name}")
+    print(f"Analizando Ã¡rea: {area_name}")
     
-    # Obtener el número total de páginas para esta área
     total_paginas = obtener_total_paginas(driver, area_code)
-    
-    if total_paginas == 0:
-        print(f"No se encontraron empleos en {area_name}")
-        return 0
-    
-    print(f"Encontradas {total_paginas} páginas para {area_name}")
-    print("Comenzando extracción de empleos...\n")
+    print(f"Encontradas {total_paginas} pÃ¡ginas para {area_name}")
+    print("Comenzando extracciÃ³n de empleos...")
     
     area_jobs = 0
+    current_page = start_page  # Resume from checkpoint if available
+    consecutive_empty = 0
     
-    # Iterar por TODAS las páginas
-    for pagina in range(start_page, total_paginas + 1):
-        print(f"\n Procesando página {pagina}/{total_paginas} de {area_name}")
+    while current_page <= total_paginas:
+        start = (current_page - 1) * 25
+        url = f"https://www.linkedin.com/jobs/search/?f_F={area_code}&geoId=100446943&location=Argentina&start={start}"
         
-        # Update global for signal handler
-        current_page = pagina
-        
+
         # Save checkpoint before each page
         checkpoint_data = LinkedInCheckpoint.create_checkpoint_data(
-            area_index - 1, pagina, list(areas_completed), total_jobs_scraped
+            area_index, current_page, list(areas_completed), total_jobs_scraped
         )
         checkpoint_manager.save_checkpoint(checkpoint_data)
+        print(f"\nðŸ”� Procesando pÃ¡gina {current_page}/{total_paginas} de {area_name}")
         
         try:
-            # Obtener URLs de esta página
-            job_urls = get_job_urls_from_page(driver, area_code, pagina)
+            driver.get(url)
+            time.sleep(3)
+            
+            try:
+                no_results = driver.find_element(By.CSS_SELECTOR, 'div.no-results, h1.no-results__header')
+                print(f"No se encontraron empleos en la pÃ¡gina {current_page}")
+                break
+            except:
+                pass
+            
+            scroll_and_load_jobs(driver, max_jobs=25)
+            
+            job_urls = get_job_urls_from_page(driver)
+            print(f"PÃ¡gina {current_page}/{total_paginas} - {len(job_urls)} empleos encontrados:")
             
             if len(job_urls) == 0:
-                print(f"Página {pagina}/{total_paginas} - 0 empleos encontrados")
+                consecutive_empty += 1
+                if consecutive_empty >= 2:
+                    break
+                current_page += 1
                 continue
             
-            # Filtrar URLs ya vistas
-            nuevas_urls = [url for url in job_urls if url not in URLS_VISTAS]
+            consecutive_empty = 0
             
-            print(f"Página {pagina}/{total_paginas} - {len(job_urls)} empleos encontrados ({len(nuevas_urls)} nuevos, {len(job_urls) - len(nuevas_urls)} ya vistos)")
-            
-            if len(nuevas_urls) == 0:
-                print(f"  [TODAS LAS URLs YA VISTAS] - Saltando página")
-                continue
-            
-            # Procesar solo URLs nuevas
-            for i, job_url in enumerate(nuevas_urls):
-                # Mark URL as seen
-                URLS_VISTAS.add(job_url)
-                
+            for i, job_url in enumerate(job_urls):
                 try:
                     driver = recrear_driver_si_necesario(driver)
                     
                     details = extract_job_details(driver, job_url)
                     if not details:
-                        print(f"  {i} - [ERROR] No se pudieron extraer detalles")
                         continue
                     
-                    # Calculate hash for duplicate detection
                     hash_empleo = calcular_hash(details['descripcion'])
                     
                     if hash_empleo in HASHES_GLOBALES:
-                        print(f"  {i} - [DUPLICADO] {details['titulo'][:50]}...")
+                        print(f"{i} - [DUPLICADO] Saltando...")
                         continue
                     
-                    print(f"  {i} - {details['titulo']}")
+                    print(f"{i} - {details['titulo']}")
                     
                     EMPLEOS.append({
-                        "Id Interno": f"LI-{area_name}-{pagina}-{i+1}",
+                        "Id Interno": f"{current_page}-{i+1}",
                         "titulo": details['titulo'],
                         "descripcion": details['descripcion'],
                         "Empresa": details['empresa'],
@@ -500,25 +382,26 @@ def scrape_area(driver, area_name, area_code, area_index, total_areas, start_pag
                     jobs_this_session += 1
                     area_jobs += 1
                     
-                    time.sleep(random.uniform(1.5, 2.5))
+                    time.sleep(1.5)
                     
                 except Exception as e:
-                    print(f"  Error procesando empleo {i+1}: {str(e)}")
+                    print(f"Error procesando empleo {i+1}: {str(e)}")
                     continue
             
-            # Pausa entre páginas
-            time.sleep(random.uniform(2, 4))
+            current_page += 1
+            time.sleep(2)
             
         except Exception as e:
-            print(f"Error en página {pagina}: {str(e)}")
+            print(f"Error en pÃ¡gina {current_page}: {str(e)}")
             driver = recrear_driver_si_necesario(driver)
+            current_page += 1
             continue
     
-    # Guardar al finalizar área
+    # Guardar al finalizar Ã¡rea
     print(f"\n{'='*60}")
-    print(f" Área '{area_name}' completada - Guardando datos...")
-    print(f" Jobs en esta área: {area_jobs}")
-    print(f" Total acumulado: {total_jobs_scraped}")
+    print(f"âœ… Ã�rea '{area_name}' completada - Guardando datos...")
+    print(f"ðŸ“Š Jobs en esta Ã¡rea: {area_jobs}")
+    print(f"ðŸ“ˆ Total acumulado: {total_jobs_scraped}")
     print(f"{'='*60}")
     
     if EMPLEOS:
@@ -527,39 +410,32 @@ def scrape_area(driver, area_name, area_code, area_index, total_areas, start_pag
     
     return area_jobs
 
-
 # Main
 if __name__ == "__main__":
     print("Iniciando scraping de LinkedIn...")
     if args.debug:
-        print("Modo debug activado - Se mostrarán mensajes detallados")
+        print("Modo debug activado - Se mostrarÃ¡n mensajes detallados")
     
     if args.start_from:
-        print(f"Iniciando desde la categoría: {args.start_from}")
+        print(f"Iniciando desde la categorÃ­a: {args.start_from}")
     
-    # Cargar hashes y URLs existentes
-    print("Cargando hashes existentes para evitar duplicados entre categorías...")
+    print("Cargando hashes existentes para evitar duplicados entre categorÃ­as...")
     timestamp = date.today().strftime("%Y%m%d")
     for area_name in AREAS.keys():
         archivo = f"output_jobs/LinkedIn_{area_name}_{timestamp}.json"
         if os.path.exists(archivo):
             try:
                 with open(archivo, 'r', encoding='utf-8') as f:
-                    empleos_existentes = json.load(f)
-                    for empleo in empleos_existentes:
+                    for empleo in json.load(f):
                         h = empleo.get("hash Descripcion")
                         if h:
                             HASHES_GLOBALES.add(h)
-                        u = empleo.get("url")
-                        if u:
-                            URLS_VISTAS.add(u)
             except:
                 pass
     print(f"Cargados {len(HASHES_GLOBALES)} hashes existentes")
-    print(f"Cargadas {len(URLS_VISTAS)} URLs ya visitadas")
     
     # =============================================================================
-    # SISTEMA DE CHECKPOINT
+    # SISTEMA DE CHECKPOINT - REANUDAR SESIÃ"N INTERRUMPIDA
     # =============================================================================
     should_resume, checkpoint_data, checkpoint_manager = get_resume_info("linkedin")
     
@@ -569,7 +445,7 @@ if __name__ == "__main__":
         start_page = checkpoint_data.get('current_page', 1)
         areas_completed = set(checkpoint_data.get('areas_completed', []))
         total_jobs_scraped = checkpoint_data.get('total_jobs_scraped', 0)
-        print(f"Iniciando desde área #{start_area_index + 1}, página {start_page}")
+        print(f"Iniciando desde Ã¡rea #{start_area_index + 1}, pÃ¡gina {start_page}")
         print(f"Jobs recolectados previamente: {total_jobs_scraped}")
     else:
         print("Iniciando scraping completo desde el principio...")
@@ -579,63 +455,49 @@ if __name__ == "__main__":
         total_jobs_scraped = 0
         checkpoint_manager = CheckpointManager("linkedin")
     
-    # Update global variables
-    current_area_index = start_area_index
-    current_page = start_page
-    
-    # Determinar desde qué área comenzar
+    # Determinar desde quÃ© Ã¡rea comenzar
     areas_list = list(AREAS.items())
-    start_index = start_area_index
+    start_index = start_area_index  # Use checkpoint if available
     
+    # Only use --start-from if not resuming from checkpoint
     if args.start_from and not should_resume:
         for i, (name, code) in enumerate(areas_list):
             if name == args.start_from:
                 start_index = i
-                print(f"Iniciando desde el índice {start_index}: {args.start_from}")
                 break
         else:
-            print(f"Área '{args.start_from}' no encontrada. Iniciando desde el principio.")
-            print(f"Áreas disponibles: {', '.join(list(AREAS.keys())[:5])}...")
+            print(f"Ã�rea '{args.start_from}' no encontrada. Iniciando desde el principio.")
+            print(f"Ã�reas disponibles: {', '.join(list(AREAS.keys())[:5])}...")
     
     areas_to_process = areas_list[start_index:]
-    print(f"Procesando {len(areas_to_process)} áreas restantes...")
+    print(f"Procesando {len(areas_to_process)} Ã¡reas restantes...")
     
     driver = create_driver()
     
     try:
         for idx, (area_name, area_code) in enumerate(areas_to_process):
+            # Skip areas that were already completed
+            if area_name in areas_completed:
+                print(f"Saltando Ã¡rea ya completada: {area_name}")
+                continue
+            
             current_area = area_name
             current_area_index = start_index + idx
             
-            # Skip completed areas
-            if area_name in areas_completed:
-                print(f"Saltando área ya completada: {area_name}")
-                continue
-            
-            # Determine starting page
-            current_start_page = start_page if idx == 0 and should_resume else 1
-            
             try:
+                # Determine starting page (resume from checkpoint if this is the current area)
+                current_start_page = start_page if (start_index + idx == start_area_index) else 1
+                
                 scrape_area(driver, area_name, area_code, current_area_index + 1, len(AREAS), current_start_page)
                 areas_completed.add(area_name)
                 
-                # Save checkpoint after each area
-                checkpoint_data = LinkedInCheckpoint.create_checkpoint_data(
-                    current_area_index + 1, 1, list(areas_completed), total_jobs_scraped
-                )
-                checkpoint_manager.save_checkpoint(checkpoint_data)
-                
             except Exception as e:
-                print(f"Error crítico en área {area_name}: {str(e)}")
-                print("Intentando continuar con la siguiente área...")
+                print(f"Error crÃ­tico en Ã¡rea {area_name}: {str(e)}")
+                print("Intentando continuar con la siguiente Ã¡rea...")
                 driver = recrear_driver_si_necesario(driver)
                 continue
             
-            # Reset start_page for subsequent areas
-            start_page = 1
-            
-            time.sleep(random.uniform(3, 5))
-        
+            time.sleep(3)
     finally:
         try:
             driver.quit()
@@ -645,11 +507,11 @@ if __name__ == "__main__":
     # Clear checkpoint after successful completion
     checkpoint_manager.clear_checkpoint()
     
-    print(f"\n SCRAPING COMPLETADO EXITOSAMENTE!")
-    print(f" Resumen de la sesión:")
-    print(f"   - Jobs recolectados en esta sesión: {jobs_this_session}")
+    print(f"\nðŸŽ‰ SCRAPING COMPLETADO EXITOSAMENTE!")
+    print(f"ðŸ“Š Resumen de la sesiÃ³n:")
+    print(f"   - Jobs recolectados en esta sesiÃ³n: {jobs_this_session}")
     print(f"   - Total de jobs recolectados: {total_jobs_scraped}")
-    print(f"   - Áreas completadas: {len(areas_completed)}/{len(AREAS)}")
+    print(f"   - Ã�reas completadas: {len(areas_completed)}/{len(AREAS)}")
     print(f"   - Todos los datos guardados en: output_jobs/")
     print(f"Archivos guardados en: output_jobs/")
     print(f"{'='*60}\n")

@@ -197,7 +197,7 @@ def verificar_pagina_existe(driver, url, intentos=3):
 
 def obtener_total_paginas(driver, categoria_slug, subcategoria_slug):
     # Obtener todos los trabajos disponibles
-    url_base = f"https://www.workana.com/jobs?category={categoria_slug}&language=en%2Ces&subcategory={subcategoria_slug}"
+    url_base = f"https://www.workana.com/jobs?category={categoria_slug}&language=en%2Ces&subcategory={subcategoria_slug}&country=AR"
     
     print(f"\nAnalizando categoría: {categoria_slug} - subcategoría: {subcategoria_slug}")
     print("Buscando total de páginas disponibles...")
@@ -428,7 +428,7 @@ for cat_index, cat in enumerate(categorias):
         )
         checkpoint_manager.save_checkpoint(checkpoint_data)
         # Agregar filtros de ubicación también aquí
-        url = f"https://www.workana.com/jobs?category={categoria_slug}&language=en%2Ces&subcategory={subcategoria_slug}&page={pagina}"
+        url = f"https://www.workana.com/jobs?category={categoria_slug}&language=en%2Ces&subcategory={subcategoria_slug}&country=AR&page={pagina}"
         debug_print(f"\nAccediendo a URL: {url}")
         
         driver.get(url)
