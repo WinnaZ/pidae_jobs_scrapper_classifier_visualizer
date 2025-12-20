@@ -14,59 +14,59 @@ DICCIONARIO_ESCUDERO = {
             "skills": [
                 {
                     "original": "organizado",
-                    "sinonimos": ["organico", "estructurado", "sistematizado", "planeado", "ideado"]
+                    "sinonimos": ["capacidad organizativa", "estructurado", "sistematizado", "organización"]
                 },
                 {
                     "original": "detallista",
-                    "sinonimos": []
+                    "sinonimos": ["meticuloso","metódico"]
                 },
                 {
                     "original": "multi tarea",
-                    "sinonimos": []
+                    "sinonimos": ["multitasking","versátil","gestión del tiempo","versatilidad"]
                 },
                 {
                     "original": "puntual",
-                    "sinonimos": ["regular", "exacto", "preciso", "formal", "metodico", "escrúpulos", "diligente", "rapido"]
+                    "sinonimos": ["regular", "preciso","diligente","regular","puntualidad"]
                 },
                 {
                     "original": "enérgico",
-                    "sinonimos": ["activo", "decidido", "resuelto", "firme", "eficaz", "eficiente", "emprendedor", "dinámico", "intenso", "poderoso", "tenaz", "vigoroso", "fuerte", "concluyente", "autoritario"]
+                    "sinonimos": ["activo", "dinámico","dinamismo","energía","eficaz","tenaz"]
                 },
                 {
                     "original": "iniciativa propia",
-                    "sinonimos": ["decisión", "dinamismo", "imaginación", "ideas", "adelanto", "advenimiento", "delantera", "iniciación", "proyecto"]
+                    "sinonimos": ["decidido","curiosidad","iniciativa","proactivo"]
                 },
                 {
                     "original": "motivado",
-                    "sinonimos": ["originar", "causar", "promover", "producir"]
+                    "sinonimos": ["aprendizaje"]
                 },
                 {
                     "original": "competente",
-                    "sinonimos": ["capacitado", "cualificado", "apto", "idoneo", "entendido", "experto", "diestro", "capaz", "especialista", "eficiente", "eficaz", "hábil", "preparado"]
+                    "sinonimos": ["capacitado","cualificado","apto","idóneo","experto","entendido","capaz","preparado","hábil","cumplir objetivos"]
                 },
                 {
                     "original": "diligente",
-                    "sinonimos": ["rápido", "activo", "ágil", "presto", "resuelto", "solicito", "vivo", "inquieto", "expeditivo", "listo"]
+                    "sinonimos": ["resuelto","solícito"]
                 },
                 {
                     "original": "esforzado",
-                    "sinonimos": ["animoso", "atrevido", "bizarro", "valiente", "luchador", "ardoroso", "brioso", "afanoso"]
+                    "sinonimos": ["dedicado"]
                 },
                 {
                     "original": "confiable",
-                    "sinonimos": []
+                    "sinonimos": ["comprometido"]
                 },
                 {
                     "original": "resistente estrés",
-                    "sinonimos": []
+                    "sinonimos": ["adaptabilidad","resiliencia","trabajo bajo presión","manejo del estrés"]
                 },
                 {
                     "original": "creativo",
-                    "sinonimos": []
+                    "sinonimos": ["innovador"]
                 },
                 {
                     "original": "independiente",
-                    "sinonimos": ["individualista", "autosuficiente", "liberado", "emancipado", "libre", "autogobernado", "autónomo", "autonómico", "alejado", "aislado", "neutral", "autárquico", "imparcial"]
+                    "sinonimos": ["autosuficiente", "autónomo"]
                 }
             ]
         },
@@ -75,31 +75,23 @@ DICCIONARIO_ESCUDERO = {
             "skills": [
                 {
                     "original": "comunicación",
-                    "sinonimos": ["comunicado", "mensaje", "oficio", "nota", "misiva", "escrito", "telegrama", "circular", "aviso", "saludo", "notificación"]
+                    "sinonimos": ["comunicativo"]
                 },
                 {
                     "original": "trabajo equipo",
-                    "sinonimos": []
+                    "sinonimos": ["espíritu de equipo"]
                 },
                 {
                     "original": "colaboración",
-                    "sinonimos": ["cooperación", "asistencia", "auxilio", "ayuda", "contribución"]
+                    "sinonimos": ["cooperación", "asistencia", "contribución"]
                 },
                 {
                     "original": "negociación",
-                    "sinonimos": ["convenio", "pacto", "tratar", "concierto", "tratado"]
-                },
-                {
-                    "original": "presentación",
-                    "sinonimos": ["mostrar", "manifestación", "exhibición", "exposición", "aparición"]
-                },
-                {
-                    "original": "equipo",
-                    "sinonimos": ["conjunto", "agrupación", "grupo", "personal", "cuadrilla", "brigado", "pandilla", "camarillo"]
+                    "sinonimos": []
                 },
                 {
                     "original": "persuasión",
-                    "sinonimos": ["argumentación", "convencimiento", "atracción", "seducción", "incitación", "sugestión"]
+                    "sinonimos": ["convencimiento","captar","influenciar","convencer","inducir","atraer","incitar","impulsar"]
                 },
                 {
                     "original": "escucha",
@@ -107,7 +99,7 @@ DICCIONARIO_ESCUDERO = {
                 },
                 {
                     "original": "flexibilidad",
-                    "sinonimos": ["ductilidad", "elasticidad", "maleabilidad", "cimbreo", "plasticidad"]
+                    "sinonimos": ["ductilidad", "maleabilidad", "plasticidad"]
                 },
                 {
                     "original": "empatía",
@@ -118,24 +110,16 @@ DICCIONARIO_ESCUDERO = {
                     "sinonimos": []
                 },
                 {
-                    "original": "consejo",
-                    "sinonimos": ["recomendación", "sugerenciar", "advertencia", "aviso", "exhortación", "asesoramiento", "indicación", "invitación", "observación", "opinión", "parecer"]
-                },
-                {
                     "original": "entretener",
-                    "sinonimos": ["distraer", "divertir", "agradar", "amenizar", "animar", "recrear", "alegrar", "deleitar", "aliviar"]
-                },
-                {
-                    "original": "lobby",
-                    "sinonimos": []
+                    "sinonimos": ["distraer", "divertir","animar","alegrar", "deleitar"]
                 },
                 {
                     "original": "enseñar",
-                    "sinonimos": ["instruir", "adiestrar", "educar", "criar", "adoctrinar", "ilustrar", "alfabetizar", "catequizar", "iniciar", "explicar", "aleccionar", "preparar"]
+                    "sinonimos": ["instruir", "educar","ilustrar", "alfabetizar","explicar","preparar","capacitar","mentoría"]
                 },
                 {
                     "original": "interacción",
-                    "sinonimos": []
+                    "sinonimos": ["relaciones interpersonales"]
                 },
                 {
                     "original": "habilidades verbales",
@@ -148,7 +132,7 @@ DICCIONARIO_ESCUDERO = {
             "skills": [
                 {
                     "original": "supervisión",
-                    "sinonimos": ["inspección", "control", "revisión", "verificación", "vigilancia"]
+                    "sinonimos": ["inspección", "revisión"]
                 },
                 {
                     "original": "liderazgo",
@@ -156,11 +140,7 @@ DICCIONARIO_ESCUDERO = {
                 },
                 {
                     "original": "gestión",
-                    "sinonimos": ["trámite", "diligencia", "papeleo", "mandato", "encargo", "misión", "cometido"]
-                },
-                {
-                    "original": "mentoria",
-                    "sinonimos": []
+                    "sinonimos": ["gestión de equipos","desarrollo de equipos","manejo de equipo"]
                 },
                 {
                     "original": "staff",
@@ -176,11 +156,11 @@ DICCIONARIO_ESCUDERO = {
                 },
                 {
                     "original": "gestion desempeño",
-                    "sinonimos": ["desembarco", "rescate", "recuperación", "descargo"]
+                    "sinonimos": []
                 },
                 {
                     "original": "gestión persona",
-                    "sinonimos": ["individuo", "sujeto", "semejante"]
+                    "sinonimos": []
                 }
             ]
         },
@@ -189,19 +169,15 @@ DICCIONARIO_ESCUDERO = {
             "skills": [
                 {
                     "original": "cliente",
-                    "sinonimos": ["parroquianos", "asiduo", "comprador", "consumidor", "usuario"]
+                    "sinonimos": ["comprador"]
                 },
                 {
                     "original": "paciente",
-                    "sinonimos": ["tolerante", "sosegado", "calmoso", "tranquilo", "estoico", "resignado", "sufrido", "enfermo", "flemático", "manso"]
-                },
-                {
-                    "original": "persuadir",
-                    "sinonimos": ["convencer", "inducir", "mover", "seducir", "fascinar", "impresionar", "atraer", "inclinar", "incitar", "arrastrar", "impulsar"]
+                    "sinonimos": ["tolerante", "comprador","tranquilo","estoico"]
                 },
                 {
                     "original": "servicio cliente",
-                    "sinonimos": ["encargo", "prestación", "asistencia", "actuación", "destino", "función", "misión", "oficio", "ocupación", "favor", "ayuda", "auxilio"]
+                    "sinonimos": ["cierre de ventas","atención al cliente","servicio al cliente"]
                 }
             ]
         }

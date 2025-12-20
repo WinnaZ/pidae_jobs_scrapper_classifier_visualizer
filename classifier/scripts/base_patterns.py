@@ -51,144 +51,124 @@ SUBCATEGORY_TO_MAIN_CATEGORY = get_skill_to_category_mapping()# ================
 HABILIDADES_BLANDAS_PATTERNS = {
     # === HABILIDADES DE CARÁCTER ===
     'organizado': [
-        (r'\b(organizaci[oó]n|organizado|organizada|org[aá]nico|estructurado|sistematizado|planeado|ideado)\b', 'organizado'),
+        (r'\b(organizado|capacidad\s+organizativa|estructurado|sistematizado|organizacion)\b', 'organizado'),
     ],
     'detallista': [
-        (r'\b(detallista|atenci[oó]n\s+al\s+detalle)\b', 'detallista'),
+        (r'\b(detallista|meticuloso|metodico)\b', 'detallista'),
     ],
-    'multi_tarea': [
-        (r'\b(multitarea|m[uú]ltiples\s+tareas|multi\s*tarea)\b', 'multi tarea'),
+    'multi tarea': [
+        (r'\b(multi\s*tarea|multitasking|versatil|gestion\s+del\s+tiempo|versatilidad)\b', 'multi tarea'),
     ],
     'puntual': [
-        (r'\b(puntual|puntualidad|regular|exacto|preciso|formal|met[oó]dico|escr[uú]pulos|diligente|r[aá]pido)\b', 'puntual'),
+        (r'\b(puntual|regular|preciso|diligente|puntualidad)\b', 'puntual'),
     ],
     'energico': [
-        (r'\b(en[ée]rgico|activo|decidido|resuelto|firme|emprendedor|din[aá]mico|intenso|poderoso|tenaz|vigoroso|fuerte|concluyente|autoritario)\b', 'enérgico'),
+        (r'\b(energico|activo|dinamico|dinamismo|energia|eficaz|tenaz)\b', 'energico'),
     ],
-    'iniciativa_propia': [
-        (r'\b(iniciativa|iniciativa\s+propia|decisi[oó]n|dinamismo|imaginaci[oó]n|ideas|adelanto|advenimiento|delantera|iniciaci[oó]n|proyecto)\b', 'iniciativa propia'),
+    'iniciativa propia': [
+        (r'\b(iniciativa\s+propia|decidido|curiosidad|iniciativa|proactivo)\b', 'iniciativa propia'),
     ],
     'motivado': [
-        (r'\b(motivado|motivada|motivaci[oó]n|originar|causar|promover|producir)\b', 'motivado'),
+        (r'\b(motivado|aprendizaje)\b', 'motivado'),
     ],
     'competente': [
-        (r'\b(competente|capacitado|cualificado|apto|id[oó]neo|entendido|experto|diestro|capaz|especialista|h[aá]bil|preparado)\b', 'competente'),
+        (r'\b(competente|capacitado|cualificado|apto|idoneo|experto|entendido|capaz|preparado|habil|cumplir\s+objetivos)\b', 'competente'),
     ],
     'diligente': [
-        (r'\b(diligente|[aá]gil|presto|resuelto|solicito|vivo|inquieto|expeditivo|listo)\b', 'diligente'),
+        (r'\b(diligente|resuelto|solicito)\b', 'diligente'),
     ],
     'esforzado': [
-        (r'\b(esforzado|animoso|atrevido|bizarro|valiente|luchador|ardoroso|brioso|afanoso)\b', 'esforzado'),
+        (r'\b(esforzado|dedicado)\b', 'esforzado'),
     ],
     'confiable': [
-        (r'\b(confiable|confianza)\b', 'confiable'),
+        (r'\b(confiable|comprometido)\b', 'confiable'),
     ],
-    'resistente_estres': [
-        (r'\b(resistente\s+estr[ée]s|resistencia\s+al\s+estr[ée]s|trabajo\s+bajo\s+presi[oó]n|manejo\s+del\s+estr[ée]s)\b', 'resistente estrés'),
+    'resistente estres': [
+        (r'\b(resistente\s+estres|adaptabilidad|resiliencia|trabajo\s+bajo\s+presion|manejo\s+del\s+estres)\b', 'resistente estres'),
     ],
     'creativo': [
-        (r'\b(creativo|creativa|creatividad|innovador|innovadora|innovaci[oó]n)\b', 'creativo'),
+        (r'\b(creativo|innovador)\b', 'creativo'),
     ],
     'independiente': [
-        (r'\b(independiente|individualista|autosuficiente|liberado|emancipado|libre|autogobernado|aut[oó]nomo|auton[oó]mico|alejado|aislado|neutral|aut[aá]rquico|imparcial)\b', 'independiente'),
+        (r'\b(independiente|autosuficiente|autonomo)\b', 'independiente'),
     ],
-    
+
     # === HABILIDADES SOCIALES ===
     'comunicacion': [
-        (r'\b(comunicaci[oó]n|comunicado|mensaje|oficio|nota|misiva|escrito|telegrama|circular|aviso|saludo|notificaci[oó]n)\b', 'comunicación'),
-        (r'\b(comunicaci[oó]n\s+efectiva|comunicaci[oó]n\s+oral|comunicaci[oó]n\s+verbal|comunicaci[oó]n\s+escrita|habilidades\s+comunicacionales|habilidades\s+de\s+comunicaci[oó]n|habilidades\s+verbales)\b', 'comunicación'),
+        (r'\b(comunicacion|comunicativo)\b', 'comunicacion'),
     ],
-    'trabajo_equipo': [
-        (r'\b(trabajo\s+en\s+equipo|trabajo\s+equipo)\b', 'trabajo equipo'),
+    'trabajo equipo': [
+        (r'\b(trabajo\s+equipo|espiritu\s+de\s+equipo)\b', 'trabajo equipo'),
     ],
     'colaboracion': [
-        (r'\b(colaboraci[oó]n|cooperaci[oó]n|asistencia|auxilio|ayuda|contribuci[oó]n)\b', 'colaboración'),
+        (r'\b(colaboracion|cooperacion|asistencia|contribucion)\b', 'colaboracion'),
     ],
     'negociacion': [
-        (r'\b(negociaci[oó]n|convenio|pacto|tratar|concierto|tratado)\b', 'negociación'),
-    ],
-    'presentacion': [
-        (r'\b(presentaci[oó]n|mostrar|manifestaci[oó]n|exhibici[oó]n|exposici[oó]n|aparici[oó]n)\b', 'presentación'),
-    ],
-    'equipo': [
-        (r'\b(equipo|conjunto|agrupaci[oó]n|grupo|personal|cuadrilla|brigada|pandilla|camarilla)\b', 'equipo'),
+        (r'\b(negociacion)\b', 'negociacion'),
     ],
     'persuasion': [
-        (r'\b(persuasi[oó]n|argumentaci[oó]n|convencimiento|atracci[oó]n|seducci[oó]n|incitaci[oó]n|sugesti[oó]n)\b', 'persuasión'),
+        (r'\b(persuasion|convencimiento|captar|influenciar|convencer|inducir|atraer|incitar|impulsar)\b', 'persuasion'),
     ],
     'escucha': [
-        (r'\b(escucha|escucha\s+activa|atender|percibir|enterar)\b', 'escucha'),
+        (r'\b(escucha|atender|percibir|enterar)\b', 'escucha'),
     ],
     'flexibilidad': [
-        (r'\b(flexibilidad|ductilidad|elasticidad|maleabilidad|cimbreo|plasticidad|adaptabilidad)\b', 'flexibilidad'),
+        (r'\b(flexibilidad|ductilidad|maleabilidad|plasticidad)\b', 'flexibilidad'),
     ],
     'empatia': [
-        (r'\b(empat[ií]a|emp[aá]tico|emp[aá]tica)\b', 'empatía'),
+        (r'\b(empatia)\b', 'empatia'),
     ],
     'asertividad': [
-        (r'\b(asertividad|asertivo|asertiva|comunicaci[oó]n\s+asertiva)\b', 'asertividad'),
-    ],
-    'consejo': [
-        (r'\b(consejo|recomendaci[oó]n|sugerencia|advertencia|asesoramiento|indicaci[oó]n|invitaci[oó]n|observaci[oó]n|opini[oó]n|parecer)\b', 'consejo'),
+        (r'\b(asertividad)\b', 'asertividad'),
     ],
     'entretener': [
-        (r'\b(entretener|distraer|divertir|agradar|amenizar|animar|recrear|alegrar|deleitar|aliviar)\b', 'entretener'),
-    ],
-    'lobby': [
-        (r'\b(lobby)\b', 'lobby'),
+        (r'\b(entretener|distraer|divertir|animar|alegrar|deleitar)\b', 'entretener'),
     ],
     'ensenar': [
-        (r'\b(ense[ñn]ar|instruir|adiestrar|educar|criar|adoctrinar|ilustrar|alfabetizar|catequizar|iniciar|explicar|aleccionar|preparar)\b', 'enseñar'),
+        (r'\b(ensenar|instruir|educar|ilustrar|alfabetizar|explicar|preparar|capacitar|mentoria)\b', 'ensenar'),
     ],
     'interaccion': [
-        (r'\b(interacci[oó]n|relaciones\s+interpersonales|manejo\s+de\s+relaciones\s+interpersonales|habilidades\s+interpersonales)\b', 'interacción'),
+        (r'\b(interaccion|relaciones\s+interpersonales)\b', 'interaccion'),
     ],
-    
-    # === HABILIDADES DE GESTIÓN DE PERSONAL ===
+
+    'habilidades verbales': [
+        (r'\b(habilidades\s+verbales)\b', 'habilidades verbales'),
+    ],
+    # === GESTIÓN DE PERSONAL ===
     'supervision': [
-        (r'\b(supervisi[oó]n|inspecci[oó]n|control|revisi[oó]n|verificaci[oó]n|vigilancia)\b', 'supervisión'),
+        (r'\b(supervision|inspeccion|revision)\b', 'supervision'),
     ],
     'liderazgo': [
-        (r'\b(liderazgo|l[ií]der|direcci[oó]n|gobierno|mando|jefatura|administraci[oó]n|directivo|gerencia)\b', 'liderazgo'),
+        (r'\b(liderazgo)\b', 'liderazgo'),
     ],
     'gestion': [
-        (r'\b(gesti[oó]n|tr[aá]mite|diligencia|papeleo|mandato|encargo|misi[oó]n|cometido)\b', 'gestión'),
-        (r'\b(gesti[oó]n\s+de\s+equipos|manejo\s+de\s+equipos|coordinaci[oó]n)\b', 'gestión'),
-    ],
-    'mentoria': [
-        (r'\b(mentor[ií]a|mentor|delegaci[oó]n|capacidad\s+de\s+liderazgo|capacidad\s+para\s+liderar)\b', 'mentoría'),
+        (r'\b(gestion|gestion\s+de\s+equipos|desarrollo\s+de\s+equipos|manejo\s+de\s+equipo)\b', 'gestion'),
     ],
     'staff': [
-        (r'\b(staff|personal)\b', 'staff'),
+        (r'\b(staff)\b', 'staff'),
     ],
-    'supervision_equipo': [
-        (r'\b(supervisi[oó]n\s+equipo|desarrollo\s+de\s+equipo)\b', 'supervisión equipo'),
+    'supervision equipo': [
+        (r'\b(supervision\s+equipo)\b', 'supervision equipo'),
     ],
-    'desarrollo_equipo': [
+    'desarrollo equipo': [
         (r'\b(desarrollo\s+equipo)\b', 'desarrollo equipo'),
     ],
-    'gestion_desempeno': [
-        (r'\b(gesti[oó]n\s+desempe[ñn]o|desembarco|rescate|recuperaci[oó]n|descargo)\b', 'gestión desempeño'),
+    'gestion desempeno': [
+        (r'\b(gestion\s+desempeno)\b', 'gestion desempeno'),
     ],
-    'gestion_persona': [
-        (r'\b(gesti[oó]n\s+persona|individuo|sujeto|semejante)\b', 'gestión persona'),
+    'gestion persona': [
+        (r'\b(gestion\s+persona)\b', 'gestion persona'),
     ],
-    
-    # === HABILIDADES DE SERVICIO AL CLIENTE ===
+    # === SERVICIO AL CLIENTE ===
     'cliente': [
-        (r'\b(cliente|parroquianos|asiduo|comprador|consumidor|usuario)\b', 'cliente'),
-        (r'\b(orientaci[oó]n\s+al\s+cliente|atenci[oó]n\s+al\s+cliente|servicio\s+al\s+cliente)\b', 'cliente'),
+        (r'\b(cliente|comprador)\b', 'cliente'),
     ],
     'paciente': [
-        (r'\b(paciente|tolerante|sosegado|calmoso|tranquilo|estoico|resignado|sufrido|enfermo|flem[aá]tico|manso|paciencia)\b', 'paciente'),
+        (r'\b(paciente|tolerante|tranquilo|estoico)\b', 'paciente'),
     ],
-    'persuadir': [
-        (r'\b(persuadir|convencer|inducir|mover|seducir|fascinar|impresionar|atraer|inclinar|incitar|arrastrar|impulsar)\b', 'persuadir'),
+    'servicio cliente': [
+        (r'\b(servicio\s+cliente|cierre\s+de\s+ventas|atencion\s+al\s+cliente|servicio\s+al\s+cliente)\b', 'servicio cliente'),
     ],
-    'servicio_cliente': [
-        (r'\b(servicio\s+cliente|encargo|prestaci[oó]n|asistencia|actuaci[oó]n|destino|funci[oó]n|oficio|ocupaci[oó]n|favor)\b', 'servicio cliente'),
-        (r'\b(vocaci[oó]n\s+de\s+servicio|customer\s+service|experiencia\s+del\s+cliente|satisfacci[oó]n\s+del\s+cliente)\b', 'servicio cliente'),
-    ]
 }
 
 # ============================================================================
