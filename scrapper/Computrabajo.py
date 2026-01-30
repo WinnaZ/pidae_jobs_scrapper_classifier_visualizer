@@ -206,7 +206,7 @@ def obtener_total_paginas(driver, categoria_slug):
         left = right
         right += 50
         
-    # Fase 2: Búsqueda binaria refinada entre el último válido y el primer inválido
+    # Fase 2: Búsqueda binaria entre el último válido y el primer inválido
     while left <= right:
         mid = (left + right) // 2
         if left == mid or right == mid:
