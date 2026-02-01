@@ -82,7 +82,7 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def guardar_datos_incremental(empleos, categoria, archivo_base="output_jobs/OCC_MX"):
+def guardar_datos_incremental(empleos, categoria, archivo_base="output_jobs/OCC_Mundial"):
     os.makedirs("output_jobs", exist_ok=True)
     timestamp = date.today().strftime("%Y%m%d")
     cat_safe = re.sub(r'[^a-zA-Z0-9]', '_', categoria)[:50]
@@ -721,7 +721,11 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                             'descripcion': f"Empleo: {titulo} - Categoría: {nombre_cat}"
                         }
                     
-                    hash_empleo = calcular_hash(details.get("descripcion", titulo))
+                    # Hash = descripcion + ubicacion + empresa (same job, different city/company = not duplicate)
+                    ubicacion = details.get("ubicacion", "México")
+                    empresa = details.get("empresa", "Confidencial")
+                    hash_content = details.get("descripcion", titulo) + "|" + ubicacion + "|" + empresa
+                    hash_empleo = calcular_hash(hash_content)
                     
                     if hash_empleo in HASHES_GLOBALES:
                         continue
@@ -730,12 +734,12 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                         "Id Interno": f"OCC-{url_cat[:20]}-{pagina}-{i+1}",
                         "titulo": details.get("titulo", titulo),
                         "descripcion": details.get("descripcion", ""),
-                        "Empresa": details.get("empresa", "Confidencial"),
+                        "Empresa": empresa,
                         "Fuente": "OCC Mundial",
                         "Tipo Portal": "Tradicional",
                         "url": job_url if job_url else url,
                         "Pais": COUNTRY_CONFIG["name"],
-                        "ubicacion": details.get("ubicacion", "México"),
+                        "ubicacion": ubicacion,
                         "salario": details.get("salario", "No especificado"),
                         "Categoria Portal": nombre_cat,
                         "Subcategoria Portal": "",
@@ -792,7 +796,7 @@ if __name__ == "__main__":
     timestamp = date.today().strftime("%Y%m%d")
     for nombre_cat, url_cat in CATEGORIAS:
         cat_safe = re.sub(r'[^a-zA-Z0-9]', '_', nombre_cat)[:50]
-        archivo = f"output_jobs/OCC_MX_{cat_safe}_{timestamp}.json"
+        archivo = f"output_jobs/OCC_Mundial_{cat_safe}_{timestamp}.json"
         if os.path.exists(archivo):
             try:
                 with open(archivo, 'r', encoding='utf-8') as f:

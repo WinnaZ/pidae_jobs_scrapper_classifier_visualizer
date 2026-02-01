@@ -182,7 +182,7 @@ run_mexico() {
     sleep 1
     
     # Iniciar scrapers
-    tmux send-keys -t "$SESSION_NAME:0.0" "python OCC_Mundial.py" C-m
+    tmux send-keys -t "$SESSION_NAME:0.0" "python OCC_MX.py" C-m
     sleep 1
     tmux send-keys -t "$SESSION_NAME:0.1" "python Bumeran_MX.py" C-m
     sleep 1
@@ -366,7 +366,7 @@ run_all() {
     tmux send-keys -t "$SESSION_NAME:0.3" "python Indeed_ARG.py" C-m
     
     echo -e "${GREEN}Iniciando scrapers de México...${NC}"
-    tmux send-keys -t "$SESSION_NAME:1.0" "python OCC_Mundial.py" C-m
+    tmux send-keys -t "$SESSION_NAME:1.0" "python OCC_MX.py" C-m
     tmux send-keys -t "$SESSION_NAME:1.1" "python Bumeran_MX.py" C-m
     tmux send-keys -t "$SESSION_NAME:1.2" "python Indeed_MX.py" C-m
     

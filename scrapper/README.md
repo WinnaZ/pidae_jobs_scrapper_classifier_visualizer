@@ -15,7 +15,7 @@ Sistema de web scraping para extraer ofertas laborales de múltiples plataformas
 ### 🇲🇽 México (MX)
 | Portal | URL | Script |
 |--------|-----|--------|
-| OCC Mundial | https://www.occ.com.mx/ | `OCC_Mundial.py` |
+| OCC Mundial | https://www.occ.com.mx/ | `OCC_MX.py` |
 | Bumeran | https://www.bumeran.com.mx/ | `Bumeran_MX.py` |
 | Indeed | https://mx.indeed.com/ | `Indeed_MX.py` |
 
@@ -116,7 +116,7 @@ python Workana.py
 python Indeed_ARG.py
 
 # México
-python OCC_Mundial.py
+python OCC_MX.py
 python Bumeran_MX.py
 python Indeed_MX.py
 
@@ -185,7 +185,7 @@ output_jobs/
 ├── Computrabajo_{area}_{fecha}.json
 ├── Workana_{categoria}_{fecha}.json
 ├── Indeed_ARG_{termino}_{fecha}.json
-├── OCC_Mundial_{categoria}_{fecha}.json
+├── OCC_MX_{categoria}_{fecha}.json
 ├── Bumeran_MX_{area}_{fecha}.json
 ├── Indeed_MX_{termino}_{fecha}.json
 ├── Catho_BR_{termino}_{fecha}.json
