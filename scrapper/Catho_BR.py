@@ -147,6 +147,9 @@ def create_driver():
     }
     options.add_experimental_option("prefs", prefs)
     
+    # EAGER = don't wait for all resources, just DOM
+    options.page_load_strategy = 'eager'
+    
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     
@@ -156,8 +159,8 @@ def create_driver():
     })
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
-    driver.set_page_load_timeout(10)  # Reducido de 60s
-    driver.implicitly_wait(10)
+    driver.set_page_load_timeout(5)
+    driver.implicitly_wait(1)  # Reducido de 10s
     
     return driver
 
@@ -254,11 +257,10 @@ def verificar_pagina_existe(driver, url_categoria, page_num):
     url = build_url(url_categoria, page_num)
     
     try:
-        driver.get(url)
-        # Sin sleep - el driver.get() espera hasta que carga
-        
-        # Scroll para cargar contenido dinámico
-        driver.execute_script("window.scrollTo(0, 500);")
+        try:
+            driver.get(url)
+        except:
+            driver.execute_script("window.stop();")
         
         # Verificar mensajes de no resultados
         page_source = driver.page_source.lower()
@@ -343,13 +345,12 @@ def close_popups(driver):
         pass
 
 def extract_job_details(driver, job_url):
-    """Extrae los detalles de una vaga específica - versión rápida"""
+    """Extrae los detalles de una vaga específica - versión ultra rápida"""
     try:
-        driver.get(job_url)
-        # Sin sleep - el get() ya espera
-        
-        close_popups(driver)
-        driver.execute_script("window.scrollTo(0, 300);")
+        try:
+            driver.get(job_url)
+        except:
+            driver.execute_script("window.stop();")
         
         details = {
             'titulo': '',
@@ -426,11 +427,10 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
         print(f"\nProcesando página {pagina}/{total_paginas} de {nombre_cat}")
         
         try:
-            driver.get(url)
-            # Sin sleep innecesario
-            
-            # Un solo scroll
-            driver.execute_script("window.scrollTo(0, 1000);")
+            try:
+                driver.get(url)
+            except:
+                driver.execute_script("window.stop();")
             
             # Extraer jobs de la página
             jobs = extract_valid_job_urls(driver)
