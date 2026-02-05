@@ -9,6 +9,10 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+
 import tempfile
 import time
 import json
@@ -127,14 +131,13 @@ def obtener_total_paginas(driver, categoria_slug):
     if not verificar_pagina_existe(driver, f"{url_base}?p=1"):
         return 1
 
-    # Saltos de 20
+    # Saltos de 50
     ultima = 1
-    pagina = 20
+    pagina = 50
     while verificar_pagina_existe(driver, f"{url_base}?p={pagina}"):
         ultima = pagina
-        pagina += 20
-        if pagina > 200:
-            break
+        pagina += 50
+       
     
     # Búsqueda binaria
     left, right = ultima, pagina
@@ -236,6 +239,9 @@ try:
             try:
                 try:
                     driver.get(url)
+                    WebDriverWait(driver, 3).until(
+                                EC.presence_of_element_located((By.CSS_SELECTOR, "a.js-o-link")))
+
                 except:
                     driver.execute_script("window.stop();")
 
@@ -248,6 +254,11 @@ try:
                     try:
                         try:
                             driver.get(url_emp)
+                            WebDriverWait(driver, 3).until(
+                                EC.presence_of_element_located((By.CSS_SELECTOR, "a.js-o-link")))
+                            driver.delete_all_cookies()
+
+
                         except:
                             driver.execute_script("window.stop();")
                         
@@ -267,7 +278,7 @@ try:
                             descripcion = titulo
                         
                         # Empresa/Ubicación
-                        empresa = "Confidencial"
+                        empresa = "N/A"
                         ubicacion = "Colombia"
                         try:
                             p = driver.find_element(By.CSS_SELECTOR, "p.fs16")

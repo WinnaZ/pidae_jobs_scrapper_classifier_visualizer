@@ -121,10 +121,10 @@ def verificar_pagina_existe(driver, url, intentos=3):
         try:
             driver.get(url)
             driver.delete_all_cookies()
-            time.sleep(random.uniform(1, 2))
+            time.sleep(0.5)
             
             # Esperar a que cargue la página
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver, 3).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
             
