@@ -207,7 +207,7 @@ def verificar_pagina_existe(driver, url, page_num):
     for intento in range(intentos):
         try:
             # Esperar a que cargue el contenido
-            WebDriverWait(driver, 5).until(
+            WebDriverWait(driver, 3).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, '#listado-avisos'))
             )
             
@@ -215,7 +215,7 @@ def verificar_pagina_existe(driver, url, page_num):
             driver.implicitly_wait(2)
             
             # Esperar a que cargue el contenido
-            listado = WebDriverWait(driver, 5).until(
+            listado = WebDriverWait(driver, 2).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, '#listado-avisos'))
             )
             
@@ -227,8 +227,6 @@ def verificar_pagina_existe(driver, url, page_num):
             except:
                 pass
 
-            # Esperar específicamente por los enlaces de empleos
-            driver.implicitly_wait(5)
             
             # Intentar diferentes selectores hasta encontrar los empleos
             empleos = []
