@@ -32,6 +32,8 @@ builtins.print = print
 # Configurar argumentos de línea de comandos
 parser = argparse.ArgumentParser(description='Script de scraping para Workana')
 parser.add_argument('--debug', action='store_true', help='Activar mensajes de debug')
+parser.add_argument('--language', type=str, choices=['es', 'pt', 'all'], default='all',
+                    help='Idioma a scrapear: es (español), pt (portugués), all (ambos)')
 args = parser.parse_args()
 
 def debug_print(*mensaje, **kwargs):
@@ -43,8 +45,16 @@ driver = None
 checkpoint_manager = None
 current_category_index = 0
 current_page = 1
+current_language = "es"
 categories_completed = set()
+languages_completed = set()
 total_jobs_scraped = 0
+
+# Languages to scrape
+LANGUAGES = {
+    "es": "Español",
+    "pt": "Portugués"
+}
 
 def signal_handler(sig, frame):
     """Handle CTRL+C gracefully by saving checkpoint"""
@@ -52,8 +62,9 @@ def signal_handler(sig, frame):
     print("Guardando checkpoint para poder reanudar...")
     
     if checkpoint_manager:
-        checkpoint_data = WorkanaCheckpoint.create_checkpoint_data(
-            current_category_index, current_page, list(categories_completed), total_jobs_scraped
+        checkpoint_data = create_checkpoint_data(
+            current_language, current_category_index, current_page, 
+            list(categories_completed), list(languages_completed), total_jobs_scraped
         )
         checkpoint_manager.save_checkpoint(checkpoint_data)
         print("Checkpoint guardado exitosamente")
@@ -68,8 +79,21 @@ def signal_handler(sig, frame):
     print("Hasta la próxima! Usa el mismo comando para reanudar.")
     sys.exit(0)
 
+def create_checkpoint_data(language, category_index, page, categories_done, languages_done, jobs_count):
+    """Create checkpoint data structure for Workana with language support"""
+    return {
+        "current_language": language,
+        "current_category_index": category_index,
+        "current_page": page,
+        "categories_completed": categories_done,
+        "languages_completed": languages_done,
+        "total_jobs_scraped": jobs_count,
+        "resume_mode": True
+    }
+
 # Register signal handler
 signal.signal(signal.SIGINT, signal_handler)
+
 # Configuración del driver
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
@@ -80,16 +104,16 @@ def calcular_hash(texto):
         return None
     return hashlib.sha256(texto.encode('utf-8')).hexdigest()
 
-def guardar_datos_incremental(empleos, categoria, archivo_base="output_jobs/Workana"):
+def guardar_datos_incremental(empleos, categoria, language, archivo_base="output_jobs/Workana"):
     """
-    Guarda los datos incrementalmente (ya no necesita filtrar duplicados)
+    Guarda los datos incrementalmente con soporte para idiomas
     """
     # Crear directorio si no existe
     os.makedirs("output_jobs", exist_ok=True)
     
-    # Nombre del archivo
+    # Nombre del archivo incluye el idioma
     timestamp = date.today().strftime("%Y%m%d")
-    nombre_archivo = f"{archivo_base}_{categoria}_{timestamp}.json"
+    nombre_archivo = f"{archivo_base}_{language}_{categoria}_{timestamp}.json"
     
     # Leer datos existentes si el archivo existe
     empleos_existentes = []
@@ -128,7 +152,7 @@ def verificar_pagina_existe(driver, url, intentos=3):
             
             # Verificar si hay mensaje de "no results found"
             try:
-                no_results = driver.find_elements(By.XPATH, "//*[contains(text(), 'No encontramos') or contains(text(), 'no results') or contains(text(), 'Sin resultados')]")
+                no_results = driver.find_elements(By.XPATH, "//*[contains(text(), 'No encontramos') or contains(text(), 'no results') or contains(text(), 'Sin resultados') or contains(text(), 'Não encontramos')]")
                 if no_results and any(elem.is_displayed() for elem in no_results):
                     print(f"Página {page_num}: 0 empleos válidos encontrados")
                     return False, 0
@@ -195,11 +219,11 @@ def verificar_pagina_existe(driver, url, intentos=3):
     
     return False, 0
 
-def obtener_total_paginas(driver, categoria_slug, subcategoria_slug):
-    # Obtener todos los trabajos disponibles
-    url_base = f"https://www.workana.com/jobs?category={categoria_slug}&language=en%2Ces&subcategory={subcategoria_slug}&country=AR"
+def obtener_total_paginas(driver, categoria_slug, subcategoria_slug, language):
+    # Obtener todos los trabajos disponibles - usando el idioma especificado
+    url_base = f"https://www.workana.com/jobs?category={categoria_slug}&language={language}&subcategory={subcategoria_slug}"
     
-    print(f"\nAnalizando categoría: {categoria_slug} - subcategoría: {subcategoria_slug}")
+    print(f"\nAnalizando categoría: {categoria_slug} - subcategoría: {subcategoria_slug} - idioma: {language}")
     print("Buscando total de páginas disponibles...")
     
     # Verificar primera página
@@ -209,7 +233,6 @@ def obtener_total_paginas(driver, categoria_slug, subcategoria_slug):
         return 1
 
     # Búsqueda optimizada por incrementos de 50
-    # Comenzar con incrementos de 50 páginas
     left = 1
     right = 50
     ultima_pagina_valida = 1
@@ -221,12 +244,12 @@ def obtener_total_paginas(driver, categoria_slug, subcategoria_slug):
             break
         ultima_pagina_valida = right
         left = right
-        right += 50  # Incrementar en 50 páginas cada vez
+        right += 50
         
     # Fase 2: Búsqueda binaria refinada entre el último válido y el primer inválido
     while left <= right:
         mid = (left + right) // 2
-        if left == mid or right == mid:  # Evitar bucle infinito
+        if left == mid or right == mid:
             break
 
         existe, _ = verificar_pagina_existe(driver, f"{url_base}&page={mid}")
@@ -248,9 +271,7 @@ def obtener_total_paginas(driver, categoria_slug, subcategoria_slug):
 
 EMPLEOS = []
 
-
 # Lista de categorías y subcategorías a scrapear
-categoria_para_archivo="all_categories"
 categorias = [
     # === Programación y Tecnología ===
     {"slug": "it-programming", "subcategoria": "web-development", "nombre": "IT_Web_Development"},
@@ -336,281 +357,351 @@ print("Iniciando scraping de Workana...")
 if args.debug:
     print("Modo debug activado - Se mostrarán mensajes detallados")
 
+# Determine which languages to scrape
+if args.language == 'all':
+    languages_to_scrape = ["es", "pt"]
+else:
+    languages_to_scrape = [args.language]
+
+print(f"Idiomas a scrapear: {', '.join([LANGUAGES[l] for l in languages_to_scrape])}")
+
 # =============================================================================
 # SISTEMA DE CHECKPOINT - REANUDAR SESIÓN INTERRUMPIDA
 # =============================================================================
-should_resume, checkpoint_data, checkpoint_manager = get_resume_info("workana")
+checkpoint_manager = CheckpointManager("workana")
+
+if checkpoint_manager.has_checkpoint():
+    checkpoint_data = checkpoint_manager.load_checkpoint()
+    if checkpoint_data:
+        print(f"\n CHECKPOINT ENCONTRADO para Workana")
+        print("="*60)
+        print(f" Progreso anterior:")
+        print(f"   - Idioma actual: {checkpoint_data.get('current_language', 'es')}")
+        print(f"   - Categorías completadas: {len(checkpoint_data.get('categories_completed', []))}")
+        print(f"   - Idiomas completados: {checkpoint_data.get('languages_completed', [])}")
+        print(f"   - Categoría actual: #{checkpoint_data.get('current_category_index', 0) + 1}")
+        print(f"   - Página actual: {checkpoint_data.get('current_page', 1)}")
+        print(f"   - Jobs recolectados: {checkpoint_data.get('total_jobs_scraped', 0)}")
+        print("="*60)
+        
+        while True:
+            choice = input("\n¿Deseas continuar desde donde se quedó? (s/n): ").lower().strip()
+            if choice in ['s', 'si', 'sí', 'y', 'yes']:
+                should_resume = True
+                break
+            elif choice in ['n', 'no']:
+                should_resume = False
+                checkpoint_manager.clear_checkpoint()
+                break
+            else:
+                print("Por favor responde 's' para sí o 'n' para no")
+    else:
+        should_resume = False
+else:
+    should_resume = False
 
 if should_resume:
     print("Reanudando desde checkpoint...")
+    start_language = checkpoint_data.get('current_language', 'es')
     start_category_index = checkpoint_data.get('current_category_index', 0)
     start_page = checkpoint_data.get('current_page', 1)
     categories_completed = set(checkpoint_data.get('categories_completed', []))
+    languages_completed = set(checkpoint_data.get('languages_completed', []))
     total_jobs_scraped = checkpoint_data.get('total_jobs_scraped', 0)
-    print(f"Iniciando desde categoría #{start_category_index + 1}, página {start_page}")
+    print(f"Iniciando desde idioma {start_language}, categoría #{start_category_index + 1}, página {start_page}")
     print(f"Jobs recolectados previamente: {total_jobs_scraped}")
 else:
     print("Iniciando scraping completo desde el principio...")
+    start_language = languages_to_scrape[0]
     start_category_index = 0
     start_page = 1
     categories_completed = set()
+    languages_completed = set()
     total_jobs_scraped = 0
-    checkpoint_manager = CheckpointManager("workana")
 
 # Update global variables for signal handler
+current_language = start_language
 current_category_index = start_category_index
 current_page = start_page
 
-# HASH GLOBAL para evitar duplicados entre categorías
+# HASH GLOBAL para evitar duplicados entre categorías e idiomas
 HASHES_GLOBALES = set()
 
-# Cargar hashes existentes de todos los archivos
-print("Cargando hashes existentes para evitar duplicados entre categorías...")
-for cat in categorias:
-    categoria_nombre = cat["nombre"]
-    timestamp = date.today().strftime("%Y%m%d")
-    archivo_existente = f"output_jobs/Workana_{categoria_nombre}_{timestamp}.json"
-    if os.path.exists(archivo_existente):
-        try:
-            with open(archivo_existente, 'r', encoding='utf-8') as f:
-                empleos_existentes = json.load(f)
-                for empleo in empleos_existentes:
-                    h = empleo.get("hash Descripcion")
-                    if h:
-                        HASHES_GLOBALES.add(h)
-        except:
-            pass
+# Cargar hashes existentes de todos los archivos (ambos idiomas)
+print("Cargando hashes existentes para evitar duplicados entre categorías e idiomas...")
+for lang in languages_to_scrape:
+    for cat in categorias:
+        categoria_nombre = cat["nombre"]
+        timestamp = date.today().strftime("%Y%m%d")
+        archivo_existente = f"output_jobs/Workana_{lang}_{categoria_nombre}_{timestamp}.json"
+        if os.path.exists(archivo_existente):
+            try:
+                with open(archivo_existente, 'r', encoding='utf-8') as f:
+                    empleos_existentes = json.load(f)
+                    for empleo in empleos_existentes:
+                        h = empleo.get("hash Descripcion")
+                        if h:
+                            HASHES_GLOBALES.add(h)
+            except:
+                pass
 
 print(f"Cargados {len(HASHES_GLOBALES)} hashes existentes")
 
 jobs_this_session = 0
 
-for cat_index, cat in enumerate(categorias):
-    # Skip categories that were already completed
-    if cat_index < start_category_index:
+# Main scraping loop - iterate through languages first, then categories
+for lang in languages_to_scrape:
+    # Skip completed languages
+    if lang in languages_completed:
+        print(f"\nSaltando idioma ya completado: {LANGUAGES[lang]}")
         continue
+    
+    # If resuming and not at the start language yet, skip
+    if should_resume and lang != start_language and languages_to_scrape.index(lang) < languages_to_scrape.index(start_language):
+        continue
+    
+    current_language = lang
+    
+    print(f"\n{'#'*80}")
+    print(f"#  INICIANDO SCRAPING EN IDIOMA: {LANGUAGES[lang].upper()} ({lang})")
+    print(f"{'#'*80}")
+    
+    # Reset categories_completed for new language (but keep cross-language duplicates in HASHES_GLOBALES)
+    if lang != start_language or not should_resume:
+        categories_completed_this_lang = set()
+        start_cat_idx = 0
+        start_pg = 1
+    else:
+        categories_completed_this_lang = categories_completed.copy()
+        start_cat_idx = start_category_index
+        start_pg = start_page
+
+    for cat_index, cat in enumerate(categorias):
+        # Skip categories before start index for current language
+        if cat_index < start_cat_idx:
+            continue
+            
+        categoria_slug = cat["slug"]
+        subcategoria_slug = cat["subcategoria"]
+        categoria_nombre = cat["nombre"]
         
-    categoria_slug = cat["slug"]
-    subcategoria_slug = cat["subcategoria"]
-    categoria_nombre = cat["nombre"]
-    
-    # Update global variables for signal handler
-    current_category_index = cat_index
-    
-    # Skip categories that were already completed in previous session
-    if categoria_nombre in categories_completed:
-        print(f"Saltando categoría ya completada: {categoria_nombre}")
-        continue
-
-    print(f"\n{'='*80}")
-    print(f"PROCESANDO CATEGORÍA {cat_index + 1}/{len(categorias)}: {categoria_nombre}")
-    print(f"{'='*80}")
-
-    # Obtener el número total de páginas para esta categoría/subcategoría
-    total_paginas = obtener_total_paginas(driver, categoria_slug, subcategoria_slug)
-    
-    print(f"\nIniciando extracción para {categoria_nombre}")
-    print(f"Encontradas {total_paginas} páginas para procesar")
-    
-    # Determine starting page (resume from checkpoint if this is the current category)
-    current_start_page = start_page if cat_index == start_category_index else pagina_inicio
-    
-    # Usar todas las páginas encontradas por el binary search
-    for pagina in range(current_start_page, total_paginas + 1):
-        print(f"\n Procesando página {pagina}/{total_paginas} de {categoria_nombre}")
+        # Create unique key for this category+language combination
+        category_lang_key = f"{lang}_{categoria_nombre}"
         
         # Update global variables for signal handler
-        current_page = pagina
+        current_category_index = cat_index
         
-        # Save checkpoint before each page
-        checkpoint_data = WorkanaCheckpoint.create_checkpoint_data(
-            cat_index, pagina, list(categories_completed), total_jobs_scraped
-        )
-        checkpoint_manager.save_checkpoint(checkpoint_data)
-        # Agregar filtros de ubicación también aquí
-        url = f"https://www.workana.com/jobs?category={categoria_slug}&language=en%2Ces&subcategory={subcategoria_slug}&country=AR&page={pagina}"
-        debug_print(f"\nAccediendo a URL: {url}")
-        
-        driver.get(url)
-        time.sleep(random.uniform(3, 5))  # Pausa más corta pero aún aleatoria
-
-        try:
-            links_empleos = WebDriverWait(driver, 5).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.project-header h2 a"))
-            )
-        except:
-            debug_print(f"No se encontraron empleos en página {pagina}")
+        # Skip categories that were already completed in previous session
+        if category_lang_key in categories_completed:
+            print(f"Saltando categoría ya completada: {categoria_nombre} ({lang})")
             continue
+
+        print(f"\n{'='*80}")
+        print(f"PROCESANDO [{LANGUAGES[lang]}] CATEGORÍA {cat_index + 1}/{len(categorias)}: {categoria_nombre}")
+        print(f"{'='*80}")
+
+        # Obtener el número total de páginas para esta categoría/subcategoría/idioma
+        total_paginas = obtener_total_paginas(driver, categoria_slug, subcategoria_slug, lang)
         
-        if not args.debug:
-            print(f"\nPágina {pagina}/{total_paginas} - {len(links_empleos)} empleos encontrados:")
+        print(f"\nIniciando extracción para {categoria_nombre} ({lang})")
+        print(f"Encontradas {total_paginas} páginas para procesar")
+        
+        # Determine starting page
+        current_start_page = start_pg if cat_index == start_cat_idx else pagina_inicio
+        
+        for pagina in range(current_start_page, total_paginas + 1):
+            print(f"\n Procesando página {pagina}/{total_paginas} de {categoria_nombre} [{lang}]")
+            
+            # Update global variables for signal handler
+            current_page = pagina
+            
+            # Save checkpoint before each page
+            checkpoint_data = create_checkpoint_data(
+                lang, cat_index, pagina, list(categories_completed), list(languages_completed), total_jobs_scraped
+            )
+            checkpoint_manager.save_checkpoint(checkpoint_data)
+            
+            # Build URL with current language
+            url = f"https://www.workana.com/jobs?category={categoria_slug}&language={lang}&subcategory={subcategoria_slug}&page={pagina}"
+            debug_print(f"\nAccediendo a URL: {url}")
+            
+            driver.get(url)
+            time.sleep(random.uniform(3, 5))
 
-        # Extract all URLs first to avoid stale element references
-        urls_empleos = []
-        for link in links_empleos:
             try:
-                url = link.get_attribute("href")
-                if url:
-                    urls_empleos.append(url)
+                links_empleos = WebDriverWait(driver, 5).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.project-header h2 a"))
+                )
             except:
+                debug_print(f"No se encontraron empleos en página {pagina}")
                 continue
-
-        for i, url_empleo in enumerate(urls_empleos):
-            # Reuse the same window instead of opening new ones
-            driver.get(url_empleo)
-
-            debug_print(f"\nProcesando empleo {i+1}: {url_empleo}")
             
-            try:
-                contenedor = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="app"]/div/div[2]/section/section/div/section/article/div[2]'))
-                )
-                descripcion = contenedor.text.strip()
-                debug_print("  [OK] Descripción extraída correctamente")
-            except Exception as e:
-                descripcion = "Descripción no disponible"
-                debug_print(f"  [ERROR] Al extraer descripción: {str(e)}")
-                
             if not args.debug:
-                print(f"  {i} - {tituloPuesto if 'tituloPuesto' in locals() else '...'}")
+                print(f"\nPágina {pagina}/{total_paginas} - {len(links_empleos)} empleos encontrados:")
 
-            categoria = "No disponible"
-            subcategoria = "No disponible"
-            try:
-                parrafos = driver.find_elements(By.TAG_NAME, "p")
-                for p in parrafos:
-                    texto = p.text
-                    if "Categoría" in texto:
-                        match_categoria = re.search(r"Categor[ií]a\s*:?[\s\n]*([\w\sáéíóúÁÉÍÓÚñÑ\-]+)", texto)
-                        if match_categoria:
-                            categoria = match_categoria.group(1).strip()
-                    if "Subcategoría" in texto:
-                        match_subcategoria = re.search(r"Subcategor[ií]a\s*:?[\s\n]*([\w\sáéíóúÁÉÍÓÚñÑ\-]+)", texto)
-                        if match_subcategoria:
-                            subcategoria = match_subcategoria.group(1).strip()
-            except:
-                pass
-
-            try:
-                titulo = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "h1.h3.title"))
-                )
-                tituloPuesto = titulo.text
-            except:
-                tituloPuesto = "Título no disponible"
-
-            try:
-                fecha_texto_elem = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="productName"]/p'))
-                )
-                texto_completo = fecha_texto_elem.text.strip()
-                match_fecha = re.search(r'(\d{1,2}\s\w+,\s\d{4})', texto_completo)
-                if match_fecha:
-                    fecha_publicacion = match_fecha.group(1)
-                else:
-                    fecha_publicacion = "Fecha no disponible"
-            except:
-                fecha_publicacion = "Fecha no disponible"
-
-            try:
-                contenedor_requisitos = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="app"]/div/div[2]/section/section[1]/div/section/article/div[3]'))
-                )
-                requisitos_elems = contenedor_requisitos.find_elements(By.TAG_NAME, "a")
-                conocimientos_valorado = [elem.text.strip() for elem in requisitos_elems]
-            except Exception:
-                conocimientos_valorado = []
-
-            try:
-                perfil_elem = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="app"]/div/div[2]/section/section[1]/div/aside/article[3]/div[1]/a'))
-                )
-                url_perfil_cliente = perfil_elem.get_attribute("href")
-            except:
-                url_perfil_cliente = None
-
-            cliente_nombre = "Nombre no disponible"
-            pais = "País no disponible"
-
-            if url_perfil_cliente:
-                # Save current job URL to return to it later
-                current_job_url = driver.current_url
-                driver.get(url_perfil_cliente)
-
+            # Extract all URLs first to avoid stale element references
+            urls_empleos = []
+            for link in links_empleos:
                 try:
-                    nombre_elem = WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "#section-personal-data > div.h1"))
+                    url_emp = link.get_attribute("href")
+                    if url_emp:
+                        urls_empleos.append(url_emp)
+                except:
+                    continue
+
+            for i, url_empleo in enumerate(urls_empleos):
+                driver.get(url_empleo)
+
+                debug_print(f"\nProcesando empleo {i+1}: {url_empleo}")
+                
+                try:
+                    contenedor = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="app"]/div/div[2]/section/section/div/section/article/div[2]'))
                     )
-                    cliente_nombre = nombre_elem.text.strip()
+                    descripcion = contenedor.text.strip()
+                    debug_print("  [OK] Descripción extraída correctamente")
+                except Exception as e:
+                    descripcion = "Descripción no disponible"
+                    debug_print(f"  [ERROR] Al extraer descripción: {str(e)}")
+
+                categoria = "No disponible"
+                subcategoria = "No disponible"
+                try:
+                    parrafos = driver.find_elements(By.TAG_NAME, "p")
+                    for p in parrafos:
+                        texto = p.text
+                        if "Categoría" in texto or "Categoria" in texto:
+                            match_categoria = re.search(r"Categor[ií]a\s*:?[\s\n]*([\w\sáéíóúÁÉÍÓÚñÑ\-]+)", texto)
+                            if match_categoria:
+                                categoria = match_categoria.group(1).strip()
+                        if "Subcategoría" in texto or "Subcategoria" in texto:
+                            match_subcategoria = re.search(r"Subcategor[ií]a\s*:?[\s\n]*([\w\sáéíóúÁÉÍÓÚñÑ\-]+)", texto)
+                            if match_subcategoria:
+                                subcategoria = match_subcategoria.group(1).strip()
                 except:
                     pass
 
                 try:
-                    pais_elem = WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "#section-personal-data > div:nth-child(3) > span.country > span > a"))
+                    titulo = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "h1.h3.title"))
                     )
-                    pais = pais_elem.text.strip()
+                    tituloPuesto = titulo.text
                 except:
-                    pass
-
-                # Return to the job page to continue processing
-                driver.get(current_job_url)
-
-            # Get current date for job entry
-            today = date.today().strftime("%d/%m/%Y")
-
-            # Convert conocimientos_valorado list to string
-            conocimientos_str = ", ".join(conocimientos_valorado) if conocimientos_valorado else ""
-            desc_completa = descripcion + ("\n\nConocimientos valorados: " + conocimientos_str if conocimientos_str else "")
-            
-            # Calcular hash del empleo
-            hash_empleo = calcular_hash(descripcion)
-            
-            # Verificar si ya existe globalmente
-            if hash_empleo not in HASHES_GLOBALES:
-                EMPLEOS.append({
-                    "Id Interno": f"{categoria_nombre}-{pagina}-{i+1}",
-                    "titulo": tituloPuesto,
-                    "descripcion": desc_completa,
-                    "Empresa": cliente_nombre,
-                    "Fuente": "Workana",
-                    "Tipo Portal":"No Tradicional",
-                    "url": url_empleo,
-                    "Pais": pais,
-                    "Ubicacion": pais,
-                    "Categoria Portal": categoria_slug,
-                    "Subcategoria Portal": subcategoria_slug,
-                    "Categorria":"",
-                    "Subcategoria":"",
-                    "hash Descripcion": hash_empleo,
-                    "fecha": today,
+                    tituloPuesto = "Título no disponible"
                     
-                })
-                HASHES_GLOBALES.add(hash_empleo)
-                total_jobs_scraped += 1
-                jobs_this_session += 1
-                debug_print(f"    [NUEVO] Empleo agregado - País: {pais} (Total: {total_jobs_scraped})")
-            else:
-                debug_print(f"    [DUPLICADO] Ya existe en otra categoría, omitiendo")
+                if not args.debug:
+                    print(f"  {i} - {tituloPuesto}")
 
-            # Pausa corta entre cada empleo para no saturar
-            time.sleep(random.uniform(1, 2))
+                try:
+                    fecha_texto_elem = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="productName"]/p'))
+                    )
+                    texto_completo = fecha_texto_elem.text.strip()
+                    match_fecha = re.search(r'(\d{1,2}\s\w+,\s\d{4})', texto_completo)
+                    if match_fecha:
+                        fecha_publicacion = match_fecha.group(1)
+                    else:
+                        fecha_publicacion = "Fecha no disponible"
+                except:
+                    fecha_publicacion = "Fecha no disponible"
+
+                try:
+                    contenedor_requisitos = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="app"]/div/div[2]/section/section[1]/div/section/article/div[3]'))
+                    )
+                    requisitos_elems = contenedor_requisitos.find_elements(By.TAG_NAME, "a")
+                    conocimientos_valorado = [elem.text.strip() for elem in requisitos_elems]
+                except Exception:
+                    conocimientos_valorado = []
+
+                try:
+                    perfil_elem = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="app"]/div/div[2]/section/section[1]/div/aside/article[3]/div[1]/a'))
+                    )
+                    url_perfil_cliente = perfil_elem.get_attribute("href")
+                except:
+                    url_perfil_cliente = None
+
+                cliente_nombre = "Nombre no disponible"
+                pais = "País no disponible"
+
+                if url_perfil_cliente:
+                    current_job_url = driver.current_url
+                    driver.get(url_perfil_cliente)
+
+                    try:
+                        nombre_elem = WebDriverWait(driver, 5).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "#section-personal-data > div.h1"))
+                        )
+                        cliente_nombre = nombre_elem.text.strip()
+                    except:
+                        pass
+
+                    try:
+                        pais_elem = WebDriverWait(driver, 5).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "#section-personal-data > div:nth-child(3) > span.country > span > a"))
+                        )
+                        pais = pais_elem.text.strip()
+                    except:
+                        pass
+
+                    driver.get(current_job_url)
+
+                today = date.today().strftime("%d/%m/%Y")
+
+                conocimientos_str = ", ".join(conocimientos_valorado) if conocimientos_valorado else ""
+                desc_completa = descripcion + ("\n\nConocimientos valorados: " + conocimientos_str if conocimientos_str else "")
+                
+                hash_empleo = calcular_hash(descripcion)
+                
+                # Verificar si ya existe globalmente (across all languages)
+                if hash_empleo not in HASHES_GLOBALES:
+                    EMPLEOS.append({
+                        "Id Interno": f"{lang}_{categoria_nombre}-{pagina}-{i+1}",
+                        "titulo": tituloPuesto,
+                        "descripcion": desc_completa,
+                        "Empresa": cliente_nombre,
+                        "Fuente": "Workana",
+                        "Tipo Portal": "No Tradicional",
+                        "url": url_empleo,
+                        "Pais": pais,
+                        "Ubicacion": pais,
+                        "Categoria Portal": categoria_slug,
+                        "Subcategoria Portal": subcategoria_slug,
+                        "Categorria": "",
+                        "Subcategoria": "",
+                        "Idioma": lang,
+                        "hash Descripcion": hash_empleo,
+                        "fecha": today,
+                    })
+                    HASHES_GLOBALES.add(hash_empleo)
+                    total_jobs_scraped += 1
+                    jobs_this_session += 1
+                    debug_print(f"    [NUEVO] Empleo agregado - País: {pais}, Idioma: {lang} (Total: {total_jobs_scraped})")
+                else:
+                    debug_print(f"    [DUPLICADO] Ya existe en otra categoría/idioma, omitiendo")
+
+                time.sleep(random.uniform(1, 2))
+        
+        # Guardado incremental por categoría (incluye idioma en el nombre)
+        print(f"\n{'='*60}")
+        print(f"Categoría '{categoria_nombre}' [{lang}] completada - Guardando datos...")
+        print(f"Jobs en esta categoría: {len(EMPLEOS)}")
+        print(f"Total acumulado: {total_jobs_scraped}")
+        print(f"{'='*60}")
+        
+        guardar_datos_incremental(EMPLEOS, categoria_nombre, lang)
+        EMPLEOS = []
+        
+        # Mark category+language as completed
+        categories_completed.add(category_lang_key)
+        
+        # Reset start_page for next category
+        start_pg = 1
     
-    # Guardado incremental por categoría
-    print(f"\n{'='*60}")
-    print(f"Categoría '{categoria_nombre}' completada - Guardando datos...")
-    print(f"Jobs en esta categoría: {len(EMPLEOS)}")
-    print(f"Total acumulado: {total_jobs_scraped}")
-    print(f"{'='*60}")
-    
-    guardar_datos_incremental(EMPLEOS, categoria_nombre)
-    EMPLEOS = []  # Limpiar lista después de guardar
-    
-    # Mark category as completed
-    categories_completed.add(categoria_nombre)
-    
-    # Reset start_page for next category
-    start_page = 1
+    # Mark language as completed
+    languages_completed.add(lang)
+    print(f"\n Idioma {LANGUAGES[lang]} completado!")
 
 # Final cleanup
 try:
@@ -621,9 +712,12 @@ except:
 # Clear checkpoint after successful completion
 checkpoint_manager.clear_checkpoint()
 
-print(f"\nPROCESO COMPLETADO EXITOSAMENTE!")
+print(f"\n{'='*80}")
+print(f" PROCESO COMPLETADO EXITOSAMENTE!")
+print(f"{'='*80}")
 print(f"Resumen de la sesión:")
+print(f"   - Idiomas procesados: {', '.join([LANGUAGES[l] for l in languages_to_scrape])}")
 print(f"   - Jobs recolectados en esta sesión: {jobs_this_session}")
 print(f"   - Total de jobs recolectados: {total_jobs_scraped}")
-print(f"   - Categorías completadas: {len(categories_completed)}/{len(categorias)}")
+print(f"   - Categorías completadas: {len(categories_completed)}")
 print(f"   - Todos los datos guardados en: output_jobs/")
