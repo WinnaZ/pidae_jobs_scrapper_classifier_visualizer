@@ -8,7 +8,10 @@ Infinite scroll handling
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+from html import unescape
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import json
 import os
 from datetime import date
@@ -18,6 +21,7 @@ import builtins
 import signal
 import time
 import hashlib
+import re
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -44,7 +48,7 @@ builtins.print = print
 parser = argparse.ArgumentParser(description='Script de scraping para InfoJobs Brasil')
 parser.add_argument('--debug', action='store_true', help='Activar mensajes de debug')
 parser.add_argument('--start-from', type=str, help='Iniciar desde una categoría específica')
-parser.add_argument('--max-scroll', type=int, default=50, help='Máximo de scrolls por categoría')
+parser.add_argument('--max-scroll', type=int, default=100, help='Máximo de scrolls por categoría (fallback si no se detecta total)')
 args = parser.parse_args()
 
 def debug_print(*mensaje, **kwargs):
@@ -55,7 +59,6 @@ def debug_print(*mensaje, **kwargs):
 # CATEGORÍAS - Extraídas de infojobs.com.br
 # =============================================================================
 CATEGORIAS = [
-    # Columna izquierda (ordenadas por cantidad)
     ("Comercial, Vendas", "comercial-vendas"),
     ("Alimentação / Gastronomia", "alimentacao-gastronomia"),
     ("Administração", "administracao"),
@@ -73,7 +76,6 @@ CATEGORIAS = [
     ("Auditoria", "auditoria"),
     ("Artes", "artes"),
     ("Ciências, Pesquisa", "ciencias-pesquisa"),
-    # Columna derecha
     ("Logística", "logistica"),
     ("Construção, Manutenção", "construcao-manutencao"),
     ("Serviços Gerais", "servicos-gerais"),
@@ -196,6 +198,41 @@ def build_url(slug):
     """Construye URL de categoría"""
     return f"https://www.infojobs.com.br/empregos-de-{slug}.aspx"
 
+def get_total_jobs_count(driver):
+    """Extrae el número total de vagas de la página"""
+    try:
+        # Buscar el contador de resultados en la página
+        selectors = [
+            "span.results-count",
+            "[class*='results']",
+            "[class*='total']",
+            "h1",  # A veces está en el título "X vagas de..."
+        ]
+        
+        for selector in selectors:
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                for elem in elements:
+                    text = elem.text
+                    # Buscar números en el texto (ej: "1.234 vagas" o "1234 resultados")
+                    match = re.search(r'([\d\.]+)\s*(?:vaga|resultado|emprego)', text.lower())
+                    if match:
+                        num_str = match.group(1).replace('.', '')
+                        return int(num_str)
+            except:
+                continue
+        
+        # Fallback: buscar cualquier número grande seguido de "vaga"
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+        match = re.search(r'([\d\.]+)\s*(?:vaga|resultado|emprego)', page_text.lower())
+        if match:
+            num_str = match.group(1).replace('.', '')
+            return int(num_str)
+    except:
+        pass
+    
+    return None  # No se pudo determinar
+
 def extract_job_urls_from_page(driver):
     """Extrae URLs de vagas de la página actual"""
     job_urls = []
@@ -229,11 +266,14 @@ def extract_job_urls_from_page(driver):
     
     return job_urls
 
-def scroll_and_load(driver, max_scrolls=50):
-    """Hace scroll infinito y carga más vagas"""
+def scroll_and_load(driver, target_jobs=None, max_scrolls=100):
+    """Hace scroll infinito y carga más vagas hasta alcanzar target_jobs"""
     all_jobs = []
     seen_urls = set()
     no_new_count = 0
+    
+    if target_jobs:
+        print(f"  Total de vagas en categoría: {target_jobs}")
     
     for scroll_num in range(max_scrolls):
         # Extraer jobs actuales
@@ -244,11 +284,16 @@ def scroll_and_load(driver, max_scrolls=50):
             for job in new_jobs:
                 seen_urls.add(job['url'])
                 all_jobs.append(job)
-            print(f"  Scroll {scroll_num + 1}: +{len(new_jobs)} vagas (total: {len(all_jobs)})")
+            print(f"  Scroll {scroll_num + 1}: +{len(new_jobs)} vagas (total: {len(all_jobs)}{f'/{target_jobs}' if target_jobs else ''})")
             no_new_count = 0
         else:
             no_new_count += 1
             debug_print(f"  Scroll {scroll_num + 1}: sin nuevas vagas ({no_new_count}/3)")
+        
+        # Terminar si alcanzamos el target o si no hay nuevas vagas
+        if target_jobs and len(all_jobs) >= target_jobs:
+            print(f"  Alcanzado el total de vagas ({len(all_jobs)}/{target_jobs})")
+            break
         
         # Si 3 scrolls sin nuevos, terminar
         if no_new_count >= 3:
@@ -269,66 +314,102 @@ def extract_job_details(driver, job_url):
     try:
         try:
             driver.get(job_url)
+            WebDriverWait(driver, 0.3).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "a.js-o-link"))
+            )
         except:
             driver.execute_script("window.stop();")
         
         details = {
             'titulo': '',
-            'empresa': 'Confidencial',
+            'empresa': 'N/A',
             'ubicacion': 'Brasil',
-            'salario': 'A combinar',
-            'descripcion': ''
+            'salario': 'N/A',
+            'descripcion': '',
+            'modalidad': '',
         }
-        
-        # Título - h1
+        breakpoint()
+        # Titulo
         try:
-            h1 = driver.find_element(By.TAG_NAME, "h1")
-            details['titulo'] = h1.text.strip()
+            meta = driver.find_element(
+                By.CSS_SELECTOR,
+                "meta[property='og:title']"
+            )
+            raw = meta.get_attribute("content").strip()
+
+            # optional cleanup
+            titulo = raw.replace("Vaga:", "").strip()
+
+            details["titulo"] = titulo
         except:
             pass
-        
+
         # Empresa
-        for sel in ["[class*='ompany']", "[class*='mpresa']", ".company-name", "[class*='Company']"]:
-            try:
-                elem = driver.find_element(By.CSS_SELECTOR, sel)
-                txt = elem.text.strip()
-                if txt and 2 < len(txt) < 100:
-                    details['empresa'] = txt
-                    break
-            except:
-                continue
-        
+        try:
+            h4 = driver.find_element(By.CSS_SELECTOR, "div.h4 a")
+            empresa = h4.text.replace("-", "").replace("Matriz", "").strip()
+            if empresa:
+                details["empresa"] = empresa
+
+        except Exception:
+            pass
+
         # Ubicación
-        for sel in ["[class*='ocation']", "[class*='ocal']", "[class*='city']", ".location"]:
-            try:
-                elem = driver.find_element(By.CSS_SELECTOR, sel)
-                txt = elem.text.strip()
-                if txt and len(txt) > 2:
-                    details['ubicacion'] = txt
+        try:
+            for d in driver.find_elements(By.CSS_SELECTOR, "div.text-medium.mb-4"):
+                txt = d.text.strip()
+                if " - " in txt and "R$" not in txt:
+                    details["ubicacion"] = txt
                     break
-            except:
-                continue
+
+
+        except Exception:
+            pass
+
         
         # Salario
-        for sel in ["[class*='alario']", "[class*='alary']", ".salary"]:
-            try:
-                elem = driver.find_element(By.CSS_SELECTOR, sel)
-                txt = elem.text.strip()
-                if txt and ('R$' in txt or 'combinar' in txt.lower()):
-                    details['salario'] = txt
-                    break
-            except:
-                continue
-        
-        # Descripción
         try:
-            body = driver.find_element(By.TAG_NAME, "body")
-            details['descripcion'] = body.text[:4000]
+            for d in driver.find_elements(By.CSS_SELECTOR, "div.text-medium.mb-4"):
+                txt = d.text.strip()
+                if "R$" in txt:
+                    details["salario"] = txt
+                    break
         except:
             pass
+
+        # Modo de Trabajo
+        try:
+            for d in driver.find_elements(
+                By.CSS_SELECTOR,
+                "div.text-medium.small.font-weight-bold"
+            ):
+                raw = d.text.strip()
+                if raw:
+                    details["modalidad"] = raw
+                    break
+        except:
+            pass
+         # Descripción
         
+        try:
+            script = driver.find_element(
+                By.CSS_SELECTOR,
+                "script[type='application/ld+json']"
+            ).get_attribute("innerHTML")
+
+            raw = json.loads(script).get("description", "")
+
+            if raw:
+                desc = unescape(raw)
+                desc = re.sub(r"<br\s*/?>", "\n", desc)
+                desc = re.sub(r"\n{2,}", "\n\n", desc).replace("\n"," ")
+
+                details["descripcion"] = desc.strip()
+                breakpoint()
+        except:
+            pass
+
         return details
-        
     except Exception as e:
         debug_print(f"Error extrayendo: {str(e)}")
         return None
@@ -356,9 +437,12 @@ def scrape_categoria(driver, nombre_cat, slug_cat, cat_index, total_cats):
         print(f"Error cargando página: {e}")
         return 0
     
+    # Obtener el total de vagas de la página
+    target_jobs = get_total_jobs_count(driver)
+    
     # Scroll y cargar todas las vagas
     print("Haciendo scroll para cargar vagas...")
-    jobs = scroll_and_load(driver, max_scrolls=args.max_scroll)
+    jobs = scroll_and_load(driver, target_jobs=target_jobs, max_scrolls=args.max_scroll)
     
     if not jobs:
         print("No se encontraron vagas en esta categoría")
@@ -385,15 +469,15 @@ def scrape_categoria(driver, nombre_cat, slug_cat, cat_index, total_cats):
             if not details:
                 details = {
                     'titulo': titulo,
-                    'empresa': 'Confidencial',
+                    'empresa': 'NA/NA',
                     'ubicacion': 'Brasil',
-                    'salario': 'A combinar',
-                    'descripcion': f"Vaga: {titulo} - Categoria: {nombre_cat}"
+                    'salario': 'NA/NA',
+                    'descripcion': f"Vaga: {titulo} - Categoria: {nombre_cat}",
+                    'modalidad' : 'NA/NA',
                 }
-            
             # Hash = descripcion + ubicacion + empresa
             ubicacion = details.get("ubicacion", "Brasil")
-            empresa = details.get("empresa", "Confidencial")
+            empresa = details.get("empresa", "NA/NA")
             hash_content = details.get("descripcion", titulo) + "|" + ubicacion + "|" + empresa
             hash_empleo = calcular_hash(hash_content)
             
@@ -411,7 +495,8 @@ def scrape_categoria(driver, nombre_cat, slug_cat, cat_index, total_cats):
                 "url": job_url,
                 "Pais": COUNTRY_CONFIG["name"],
                 "ubicacion": ubicacion,
-                "salario": details.get("salario", "A combinar"),
+                "salario": details.get("salario", "NA/NA"),
+                "modalidad" : details.get("modalidad", "NA/NA"),
                 "Categoria Portal": nombre_cat,
                 "Subcategoria Portal": "",
                 "Categorria": "",
@@ -453,7 +538,7 @@ if __name__ == "__main__":
     if args.debug:
         print("Modo debug activado")
     
-    print(f"Max scrolls por categoría: {args.max_scroll}")
+    print(f"Max scrolls (fallback): {args.max_scroll}")
     
     # Cargar hashes existentes
     print("\nCargando hashes existentes...")
