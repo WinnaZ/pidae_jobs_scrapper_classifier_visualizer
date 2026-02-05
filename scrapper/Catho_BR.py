@@ -56,18 +56,16 @@ def debug_print(*mensaje, **kwargs):
         _original_print(f"{COLOR}{' '.join(map(str, mensaje))}{RESET}", flush=True, **kwargs)
 
 # =============================================================================
-# CATEGORÍAS - Extraídas de catho.com.br (imagen del usuario)
+# CATEGORÍAS - Extraídas de catho.com.br
 # =============================================================================
 CATEGORIAS = [
-    # Fila 1
-    ("Primeiro Emprego", "primeiro-emprego"),
+    ("Primeiro Emprego", "estagio-aprendiz-estagiario"),
     ("Administrativo", "administrativo"),
     ("Vendas", "vendas"),
-    ("Jurídico", "juridico"),
+    ("Jurídico", "area-juridica"),
     ("Financeiro", "financeiro"),
     ("Produção", "producao"),
-    # Fila 2
-    ("RH", "rh"),
+    ("RH", "recrutamento"),
     ("Saúde", "saude"),
     ("Educação", "educacao"),
     ("Tecnologia", "tecnologia"),
@@ -160,7 +158,7 @@ def create_driver():
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
     driver.set_page_load_timeout(5)
-    driver.implicitly_wait(1)  # Reducido de 10s
+    driver.implicitly_wait(3)  # Reducido de 10s
     
     return driver
 
@@ -259,16 +257,17 @@ def verificar_pagina_existe(driver, url_categoria, page_num):
     try:
         try:
             driver.get(url)
+            time.sleep(1.5)
+
         except:
             driver.execute_script("window.stop();")
-        
         # Verificar mensajes de no resultados
         page_source = driver.page_source.lower()
         no_results_phrases = [
             "nenhuma vaga",
             "sem resultados", 
             "não encontramos",
-            "0 vagas",
+            "Não encontramos nenhuma",
             "não há vagas"
         ]
         
@@ -300,16 +299,14 @@ def obtener_total_paginas(driver, url_categoria):
         print("No se encontraron vagas en la primera página")
         return 1
     
-    # Fase 1: Saltos de 20 para encontrar límite superior
+    # Fase 1: Saltos de 50 para encontrar límite superior
     ultima_valida = 1
-    pagina = 20
+    pagina = 50
     
     while verificar_pagina_existe(driver, url_categoria, pagina):
         ultima_valida = pagina
-        pagina += 20
-        
-        if pagina > 200:
-            break
+        pagina += 50
+  
     
     # Fase 2: Búsqueda binaria refinada
     left = ultima_valida
@@ -329,10 +326,7 @@ def obtener_total_paginas(driver, url_categoria):
     while verificar_pagina_existe(driver, url_categoria, pagina + 1):
         pagina += 1
         ultima_valida = pagina
-        
-        if pagina > 300:
-            break
-    
+ 
     print(f"Total de páginas encontradas: {ultima_valida}")
     return ultima_valida
 
@@ -349,14 +343,17 @@ def extract_job_details(driver, job_url):
     try:
         try:
             driver.get(job_url)
+            WebDriverWait(driver, 0.3).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "a.js-o-link")))
+
         except:
             driver.execute_script("window.stop();")
         
         details = {
             'titulo': '',
-            'empresa': 'Confidencial',
+            'empresa': '',
             'ubicacion': 'Brasil',
-            'salario': 'A combinar',
+            'salario': '',
             'descripcion': ''
         }
         
@@ -368,15 +365,18 @@ def extract_job_details(driver, job_url):
             pass
         
         # Empresa
-        for sel in ["[class*='ompany']", "[class*='mpresa']", "a[href*='empresa']"]:
-            try:
-                elem = driver.find_element(By.CSS_SELECTOR, sel)
-                txt = elem.text.strip()
-                if txt and 2 < len(txt) < 100:
-                    details['empresa'] = txt
-                    break
-            except:
-                continue
+        elem = driver.find_element(By.ID, "__NEXT_DATA__").get_attribute("innerHTML")
+        data = json.loads(elem)
+        empresa = (
+            data.get("props", {})
+                .get("pageProps", {})
+                .get("jobAdData", {})
+                .get("contratante", {})
+                .get("nome", "")
+                .strip()
+        )
+        if empresa:
+            details["empresa"] = empresa.lower().capitalize()
         
         # Ubicación
         for sel in ["[class*='ocation']", "[class*='ocal']"]:
@@ -443,9 +443,9 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
             consecutive_empty = 0
             
             # Mostrar jobs encontrados
-            print(f"{len(jobs)} vagas encontradas:")
-            for idx, job in enumerate(jobs):
-                print(f"{idx} - {job['titulo'][:60]}")
+            # print(f"{len(jobs)} vagas encontradas:")
+            # for idx, job in enumerate(jobs):
+            #     print(f"{idx} - {job['titulo'][:60]}")
             
             # Procesar cada job
             for i, job in enumerate(jobs):
@@ -472,15 +472,15 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                         debug_print(f"  Usando datos básicos para {titulo[:30]}")
                         details = {
                             'titulo': titulo,
-                            'empresa': 'Confidencial',
+                            'empresa': 'N/A',
                             'ubicacion': 'Brasil',
-                            'salario': 'A combinar',
+                            'salario': 'N/A',
                             'descripcion': f"Vaga: {titulo} - Categoria: {nombre_cat}"
                         }
                     
                     # Hash = descripcion + ubicacion + empresa
                     ubicacion = details.get("ubicacion", "Brasil")
-                    empresa = details.get("empresa", "Confidencial")
+                    empresa = details.get("empresa", "NA/NA")
                     hash_content = details.get("descripcion", titulo) + "|" + ubicacion + "|" + empresa
                     hash_empleo = calcular_hash(hash_content)
                     
@@ -498,7 +498,7 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                         "url": job_url,
                         "Pais": COUNTRY_CONFIG["name"],
                         "ubicacion": ubicacion,
-                        "salario": details.get("salario", "A combinar"),
+                        "salario": details.get("salario", "N/A"),
                         "Categoria Portal": nombre_cat,
                         "Subcategoria Portal": "",
                         "Categorria": "",
