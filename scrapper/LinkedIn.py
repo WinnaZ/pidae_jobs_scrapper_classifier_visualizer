@@ -293,7 +293,7 @@ def scrape_area(driver, area_name, area_code, area_index, total_areas, start_pag
     global total_jobs_scraped, jobs_this_session, EMPLEOS, HASHES_GLOBALES, current_page
     
     print(f"\n{'='*80}")
-    print(f"PROCESANDO Ã�REA {area_index}/{total_areas}: {area_name}")
+    print(f"PROCESANDO ÃREA {area_index}/{total_areas}: {area_name}")
     print(f"{'='*80}")
     
     print(f"Analizando Ã¡rea: {area_name}")
@@ -316,7 +316,7 @@ def scrape_area(driver, area_name, area_code, area_index, total_areas, start_pag
             area_index, current_page, list(areas_completed), total_jobs_scraped
         )
         checkpoint_manager.save_checkpoint(checkpoint_data)
-        print(f"\nðŸ”� Procesando pÃ¡gina {current_page}/{total_paginas} de {area_name}")
+        print(f"\nðŸ” Procesando pÃ¡gina {current_page}/{total_paginas} de {area_name}")
         
         try:
             driver.get(url)
@@ -399,7 +399,7 @@ def scrape_area(driver, area_name, area_code, area_index, total_areas, start_pag
     
     # Guardar al finalizar Ã¡rea
     print(f"\n{'='*60}")
-    print(f"âœ… Ã�rea '{area_name}' completada - Guardando datos...")
+    print(f"âœ… Ãrea '{area_name}' completada - Guardando datos...")
     print(f"ðŸ“Š Jobs en esta Ã¡rea: {area_jobs}")
     print(f"ðŸ“ˆ Total acumulado: {total_jobs_scraped}")
     print(f"{'='*60}")
@@ -466,8 +466,8 @@ if __name__ == "__main__":
                 start_index = i
                 break
         else:
-            print(f"Ã�rea '{args.start_from}' no encontrada. Iniciando desde el principio.")
-            print(f"Ã�reas disponibles: {', '.join(list(AREAS.keys())[:5])}...")
+            print(f"Ãrea '{args.start_from}' no encontrada. Iniciando desde el principio.")
+            print(f"Ãreas disponibles: {', '.join(list(AREAS.keys())[:5])}...")
     
     areas_to_process = areas_list[start_index:]
     print(f"Procesando {len(areas_to_process)} Ã¡reas restantes...")
@@ -511,7 +511,7 @@ if __name__ == "__main__":
     print(f"ðŸ“Š Resumen de la sesiÃ³n:")
     print(f"   - Jobs recolectados en esta sesiÃ³n: {jobs_this_session}")
     print(f"   - Total de jobs recolectados: {total_jobs_scraped}")
-    print(f"   - Ã�reas completadas: {len(areas_completed)}/{len(AREAS)}")
+    print(f"   - Ãreas completadas: {len(areas_completed)}/{len(AREAS)}")
     print(f"   - Todos los datos guardados en: output_jobs/")
     print(f"Archivos guardados en: output_jobs/")
     print(f"{'='*60}\n")
