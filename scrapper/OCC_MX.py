@@ -348,7 +348,7 @@ def extract_jobs_from_listing(driver):
                 # Extraer datos de la tarjeta (elemento padre del h2)
                 job_data = {
                     'titulo': titulo,
-                    'empresa': 'Confidencial',
+                    'empresa': 'NA/NA',
                     'ubicacion': 'México',
                     'salario': 'No especificado',
                     'descripcion': ''
@@ -459,7 +459,7 @@ def extract_job_data_from_card(driver, job_title):
                                 salario = salary_match.group(0).strip()
                             
                             # Extraer empresa (buscar enlace a bolsa-de-trabajo)
-                            empresa = "Confidencial"
+                            empresa = "NA/NA"
                             try:
                                 empresa_link = parent.find_element(By.CSS_SELECTOR, "a[href*='bolsa-de-trabajo']")
                                 empresa = empresa_link.text.strip()
@@ -515,7 +515,7 @@ def extract_job_details(driver, job_url):
             titulo = "Título no disponible"
         
         # Empresa
-        empresa = "Confidencial"
+        empresa = "NA/NA"
         try:
             # Buscar enlace a empresa
             empresa_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/bolsa-de-trabajo-']")
@@ -525,8 +525,8 @@ def extract_job_details(driver, job_url):
                     empresa = text
                     break
             
-            # Si no encontró, buscar "Empresa confidencial" en el texto
-            if empresa == "Confidencial":
+            # Si no encontró, buscar "Empresa Confidencial" en el texto
+            if empresa == "NA/NA":
                 page_source = driver.page_source
                 if "confidencial" in page_source.lower():
                     empresa = "Confidencial"
@@ -715,7 +715,7 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                         # Usar datos básicos
                         details = {
                             'titulo': titulo,
-                            'empresa': 'Confidencial',
+                            'empresa': 'NA/NA',
                             'ubicacion': 'México',
                             'salario': 'No especificado',
                             'descripcion': f"Empleo: {titulo} - Categoría: {nombre_cat}"
@@ -723,7 +723,7 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                     
                     # Hash = descripcion + ubicacion + empresa (same job, different city/company = not duplicate)
                     ubicacion = details.get("ubicacion", "México")
-                    empresa = details.get("empresa", "Confidencial")
+                    empresa = details.get("empresa", "NA/NA")
                     hash_content = details.get("descripcion", titulo) + "|" + ubicacion + "|" + empresa
                     hash_empleo = calcular_hash(hash_content)
                     

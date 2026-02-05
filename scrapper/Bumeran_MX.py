@@ -157,7 +157,7 @@ def create_driver():
         "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     })
     driver.set_page_load_timeout(60)
-    driver.implicitly_wait(10)
+    driver.implicitly_wait(3)
     
     return driver
 
@@ -272,18 +272,15 @@ def obtener_total_paginas(driver, url_categoria):
         print("No se encontraron empleos en la primera página")
         return 0
     
-    # Fase 1: Encontrar límite superior con saltos de 20
+    # Fase 1: Encontrar límite superior con saltos de 50
     ultima_valida = 1
-    right = 20
+    right = 50
     
     while True:
         if verificar_pagina_existe(driver, url_base, right):
             ultima_valida = right
-            right += 20
+            right += 50
         else:
-            break
-        
-        if right > 200:
             break
     
     # Fase 2: Búsqueda binaria
@@ -309,9 +306,6 @@ def obtener_total_paginas(driver, url_categoria):
         pagina += 1
         ultima_valida = pagina
         
-        if pagina > 300:
-            break
-    
     print(f"Total de páginas encontradas: {ultima_valida}")
     return ultima_valida
 
@@ -420,7 +414,7 @@ def extract_jobs_from_listing(driver):
                 # Extraer datos adicionales
                 job_data = {
                     'titulo': titulo,
-                    'empresa': 'Confidencial',
+                    'empresa': 'NA/NA',
                     'ubicacion': 'México',
                     'salario': 'No especificado',
                     'descripcion': ''
@@ -505,7 +499,7 @@ def extract_job_details(driver, job_url):
             titulo = "Título no disponible"
         
         # Empresa
-        empresa = "Confidencial"
+        empresa = "NA/NA"
         try:
             # Buscar por varios selectores
             for selector in ["a[href*='bolsa-trabajo']", "span[class*='empresa']", "div[class*='empresa']"]:
@@ -654,15 +648,15 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                     else:
                         details = {
                             'titulo': titulo,
-                            'empresa': 'Confidencial',
+                            'empresa': 'NA/NA',
                             'ubicacion': 'México',
                             'salario': 'No especificado',
-                            'descripcion': f"Empleo: {titulo} - Categoría: {nombre_cat}"
+                            'descripcion': ""
                         }
                     
                     # Hash = descripcion + ubicacion + empresa (same job, different city/company = not duplicate)
                     ubicacion = details.get("ubicacion", "México")
-                    empresa = details.get("empresa", "Confidencial")
+                    empresa = details.get("empresa", "NA/NA")
                     hash_content = details.get("descripcion", titulo) + "|" + ubicacion + "|" + empresa
                     hash_empleo = calcular_hash(hash_content)
                     
