@@ -462,6 +462,8 @@ if args.start_from and not should_resume:
 areas_to_process = areas[start_index:]
 print(f"Procesando {len(areas_to_process)} áreas restantes...")
 
+import time  # Add import for time
+
 for area_index, area in enumerate(areas_to_process, start_index):
     # Skip areas that were already completed
     if area in areas_completed:
@@ -547,23 +549,13 @@ for area_index, area in enumerate(areas_to_process, start_index):
                         # Navegar directamente a la URL del empleo en la ventana actual
                         driver.get(url_empleo)
                         
-                        # Reduced wait time from 15 to 8 seconds
-                        WebDriverWait(driver, 8).until(
+                        WebDriverWait(driver, 3).until(
                             EC.presence_of_element_located((By.CSS_SELECTOR, "h1"))
                         )
                         
-                        # Reduced sleep time from 3 to 1 second
-                        import time
-                        time.sleep(1)  # Reduced wait for AJAX content
+                        # OPTIMIZED: Reduced sleep from 1 to 0.3 seconds
+                        time.sleep(0.3)
                         
-                        # Reduced wait time for loading indicators
-                        try:
-                            WebDriverWait(driver, 5).until_not(
-                                EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Loading')]"))
-                            )
-                        except:
-                            pass  # If no loading elements, continue
-
                         # --- DETECCIÓN TEMPRANA DE DUPLICADOS ---
                         # Primero extraer solo descripción para verificar duplicados
                         try:
@@ -580,17 +572,7 @@ for area_index, area in enumerate(areas_to_process, start_index):
                         if hash_empleo in HASHES_GLOBALES:
                             debug_print(f"    [DUPLICADO TEMPRANO] Saltando empleo {i+1} - ya existe")
                             if not args.debug:
-                                print(f"{i} - [DUPLICADO] Saltando (ahorrando ~8s)...")
-                            
-                            # Volver a la página de listado si no es el último empleo
-                            if i < len(urls_empleos) - 1:
-                                driver.get(url)
-                                try:
-                                    WebDriverWait(driver, 5).until(
-                                        EC.presence_of_all_elements_located((By.CSS_SELECTOR, '#listado-avisos > div > a'))
-                                    )
-                                except:
-                                    pass
+                                print(f"{i} - [DUPLICADO] Saltando...")
                             continue
                         
                         # Si no es duplicado, extraer el resto de los datos
@@ -612,10 +594,7 @@ for area_index, area in enumerate(areas_to_process, start_index):
                         except:
                             ubicacion = "Ubicación no disponible"
 
-                        # [Resto del código de extracción de datos permanece igual...]
                         try:
-                            import time
-                            
                             # Buscar el elemento de empresa con múltiples selectores
                             empresa_element = None
                             empresa_selectors = [
@@ -627,7 +606,7 @@ for area_index, area in enumerate(areas_to_process, start_index):
                             
                             for selector in empresa_selectors:
                                 try:
-                                    empresa_element = WebDriverWait(driver, 3).until(
+                                    empresa_element = WebDriverWait(driver, 1).until(
                                         EC.presence_of_element_located((By.XPATH, selector))
                                     )
                                     break
@@ -635,10 +614,9 @@ for area_index, area in enumerate(areas_to_process, start_index):
                                     continue
                             
                             if not empresa_element:
-                                empresa = "Confidencial"
+                                empresa = "NA/NA"
                             else:
-                                # Esperar hasta que el contenido se cargue completamente
-                                max_attempts = 60  # 60 intentos de 0.5 segundos = 30 segundos
+                                max_attempts = 3
                                 empresa = ""
                                 
                                 for attempt in range(max_attempts):
@@ -657,50 +635,25 @@ for area_index, area in enumerate(areas_to_process, start_index):
                                     except Exception:
                                         pass
                                     
-                                    # Esperar medio segundo antes del siguiente intento
-                                    time.sleep(0.5)
-                                    
-                                    # Re-buscar el elemento cada 10 intentos por si ha cambiado
-                                    if attempt % 10 == 9:
-                                        try:
-                                            for selector in empresa_selectors:
-                                                try:
-                                                    empresa_element = driver.find_element(By.XPATH, selector)
-                                                    break
-                                                except:
-                                                    continue
-                                        except:
-                                            pass
+                                    time.sleep(0.3)
                                 
-                                # Si después de todo sigue siendo Loading o vacío, usar alternativas
+                                # Si después de todo sigue siendo Loading o vacío, usar NA/NA
                                 if not empresa or empresa == "Loading..." or empresa.startswith("Loading"):
-                                    debug_print(f"PROBLEMA: Empresa sigue como 'Loading...' después de 30s")
-                                    
-                                    # Intentar selector alternativo más específico
-                                    try:
-                                        empresa_alt = driver.find_element(By.XPATH, 
-                                            "//div[contains(@class, 'company-name') or contains(@class, 'empresa')]").text.strip()
-                                        if empresa_alt and empresa_alt != "Loading...":
-                                            empresa = empresa_alt
-                                            debug_print(f"Empresa encontrada con selector alternativo: '{empresa}'")
-                                        else:
-                                            empresa = "Confidencial"
-                                    except:
-                                        empresa = "Confidencial"
+                                    empresa = "NA/NA"
                                 
                         except Exception as e:
                             debug_print(f"Error extrayendo empresa: {str(e)}")
-                            empresa = "Confidencial"
+                            empresa = "NA/NA"
                             
                         try:
-                            categoria_portal = WebDriverWait(driver, 3).until(
+                            categoria_portal = WebDriverWait(driver, 0.5).until(
                                 EC.presence_of_element_located((By.XPATH, '//*[@id="root"]/div/div[2]/div[1]/div/div/div/h2/a[2]'))
                             ).text.strip()
                         except:
                             categoria_portal = "No disponible"
 
                         try:
-                            subcategoria_portal = WebDriverWait(driver, 3).until(
+                            subcategoria_portal = WebDriverWait(driver, 0.5).until(
                                 EC.presence_of_element_located((By.XPATH, '//*[@id="root"]/div/div[2]/div[1]/div/div/div/h2/a[3]'))
                             ).text.strip()
                         except:
@@ -731,24 +684,8 @@ for area_index, area in enumerate(areas_to_process, start_index):
                         jobs_this_session += 1
                         debug_print(f"    [NUEVO] Empleo agregado (Total: {total_jobs_scraped})")
                         
-                        # Volver a la página de listado después de procesar el empleo
-                        if i < len(urls_empleos) - 1:  # No volver al final si es el último empleo
-                            driver.get(url)
-                            # Esperar a que cargue la página de listado
-                            try:
-                                WebDriverWait(driver, 5).until(
-                                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, '#listado-avisos > div > a'))
-                                )
-                            except:
-                                pass
-                        
                     except Exception as e:
                         print(f"Error procesando empleo {i+1}: {str(e)}")
-                        # Volver a la página de listado en caso de error
-                        try:
-                            driver.get(url)
-                        except:
-                            pass
                         continue
                         
             except Exception as e:
