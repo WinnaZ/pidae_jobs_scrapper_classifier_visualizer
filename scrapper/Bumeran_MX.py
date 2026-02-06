@@ -179,74 +179,40 @@ def recrear_driver_si_necesario(driver):
     return driver
 
 def verificar_pagina_existe(driver, url_base, page_num):
-    """Verifica si una página tiene empleos válidos"""
-    test_url = f"{url_base}.html?page={page_num}"
-    
+    """Verifica si una página existe y tiene empleos"""
     try:
-        driver.get(test_url)
+        url = f"{url_base}.html?page={page_num}"
+        driver.get(url)
         time.sleep(1.5)
         
-        # Scroll para cargar contenido
-        driver.execute_script("window.scrollTo(0, 500);")
-        time.sleep(0.3)
-        
-        # Verificar si hay mensaje de no resultados
-        page_source = driver.page_source.lower()
-        if "no encontramos" in page_source or "sin resultados" in page_source or "0 avisos" in page_source:
-            print(f"Página {page_num}: 0 empleos")
-            return False
-        
-        # Buscar enlaces a empleos individuales (no categorías)
+        # Buscar enlaces a empleos
         job_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/empleos/']")
         
         valid_jobs = 0
-        seen_urls = set()
-        
         for link in job_links:
             try:
                 href = link.get_attribute("href")
-                if not href:
+                if not href or '/empleos/' not in href:
                     continue
                 
-                # Debug: mostrar todas las URLs encontradas
-                debug_print(f"  URL encontrada: {href}")
+                if 'empleos-area' in href or '-pagina-' in href or '?page=' in href:
+                    continue
+                
+                if not href.endswith('.html'):
+                    continue
+                
+                parts = href.split('/empleos/')
+                if len(parts) > 1:
+                    slug = parts[1].replace('.html', '')
                     
-                # Filtrar solo enlaces a empleos individuales
-                if '/empleos/' in href and href not in seen_urls:
-                    # Excluir páginas de categorías y listados
-                    if 'empleos-area' in href:
-                        debug_print(f"    -> Rechazado: es página de área")
-                        continue
-                    if '-pagina-' in href or '?page=' in href:
-                        debug_print(f"    -> Rechazado: es paginación")
-                        continue
-                    
-                    # Debe terminar en .html y tener un ID numérico al final
-                    # Formato típico: /empleos/titulo-del-puesto-1234567.html
-                    if not href.endswith('.html'):
-                        debug_print(f"    -> Rechazado: no termina en .html")
+                    if len(slug) < 15 or '-' not in slug:
                         continue
                     
-                    # Extraer el slug después de /empleos/
-                    parts = href.split('/empleos/')
-                    if len(parts) > 1:
-                        slug = parts[1].replace('.html', '')
-                        
-                        # El slug debe tener al menos 15 caracteres y contener guiones
-                        if len(slug) < 15 or '-' not in slug:
-                            debug_print(f"    -> Rechazado: slug muy corto o sin guiones: {slug}")
-                            continue
-                        
-                        # Verificar que tenga un ID numérico al final (típico de Bumeran)
-                        # Ejemplo: vendedor-telefonico-1234567
-                        last_part = slug.split('-')[-1]
-                        if not last_part.isdigit():
-                            debug_print(f"    -> Rechazado: no tiene ID numérico: {last_part}")
-                            continue
-                        
-                        seen_urls.add(href)
-                        valid_jobs += 1
-                        debug_print(f"    -> VÁLIDO: {slug[:50]}")
+                    last_part = slug.split('-')[-1]
+                    if not last_part.isdigit():
+                        continue
+                    
+                    valid_jobs += 1
             except:
                 continue
         
@@ -376,8 +342,7 @@ def extract_jobs_from_listing(driver):
                             if len(titulo) > 5 and len(titulo) < 200:
                                 job_cards.append({
                                     'titulo': titulo,
-                                    'url': href,
-                                    'element': link
+                                    'url': href
                                 })
             except:
                 continue
@@ -395,196 +360,428 @@ def extract_jobs_from_listing(driver):
                     texto = h2.text.strip()
                     if texto and len(texto) > 5 and len(texto) < 150:
                         if not any(skip.lower() in texto.lower() for skip in skip_texts):
-                            job_cards.append({
-                                'titulo': texto,
-                                'url': '',
-                                'element': h2
-                            })
+                            # Try to find parent link
+                            parent = h2
+                            url_found = None
+                            for _ in range(5):
+                                try:
+                                    parent = parent.find_element(By.XPATH, "./..")
+                                    links = parent.find_elements(By.CSS_SELECTOR, "a[href*='/empleos/']")
+                                    for link in links:
+                                        href = link.get_attribute("href")
+                                        if href and href.endswith('.html') and '/empleos/' in href:
+                                            url_found = href
+                                            break
+                                    if url_found:
+                                        break
+                                except:
+                                    break
+                            
+                            if url_found:
+                                job_cards.append({
+                                    'titulo': texto,
+                                    'url': url_found
+                                })
                 except:
                     continue
         
-        print(f"{len(job_cards)} empleos encontrados:")
-        
-        # Procesar cada empleo
+        print(f"{len(job_cards)} empleos encontrados")
         for idx, job in enumerate(job_cards[:25]):
-            try:
-                titulo = job['titulo']
-                print(f"{idx} - {titulo[:60]}")
-                
-                # Extraer datos adicionales
-                job_data = {
-                    'titulo': titulo,
-                    'empresa': 'NA/NA',
-                    'ubicacion': 'México',
-                    'salario': 'No especificado',
-                    'descripcion': ''
-                }
-                
-                # Intentar obtener más datos del card
-                try:
-                    element = job['element']
-                    parent = element
-                    
-                    # Subir en el DOM para encontrar el contenedor
-                    for _ in range(5):
-                        try:
-                            parent = parent.find_element(By.XPATH, "./..")
-                            card_text = parent.text
-                            if len(card_text) > 50:
-                                break
-                        except:
-                            break
-                    
-                    if parent and parent.text:
-                        card_text = parent.text
-                        lines = card_text.split('\n')
-                        
-                        for line in lines:
-                            line = line.strip()
-                            
-                            # Buscar salario
-                            if '$' in line and ('mes' in line.lower() or 'mensual' in line.lower()):
-                                job_data['salario'] = line
-                            
-                            # Buscar ubicación (estados mexicanos)
-                            ubicaciones = ['CDMX', 'Ciudad de México', 'Jalisco', 'Nuevo León',
-                                          'Monterrey', 'Guadalajara', 'Estado de México', 'Puebla',
-                                          'Querétaro', 'Tijuana', 'Veracruz', 'Chihuahua']
-                            for ub in ubicaciones:
-                                if ub.lower() in line.lower() and len(line) < 100:
-                                    job_data['ubicacion'] = line
-                                    break
-                        
-                        # Empresa puede estar en una línea corta sin símbolos
-                        for line in lines[1:4]:
-                            line = line.strip()
-                            if line and len(line) > 3 and len(line) < 60:
-                                if '$' not in line and 'hace' not in line.lower():
-                                    if not any(ub.lower() in line.lower() for ub in ubicaciones):
-                                        job_data['empresa'] = line
-                                        break
-                except:
-                    pass
-                
-                # Descripción básica
-                job_data['descripcion'] = f"{titulo} - {job_data['empresa']} - {job_data['ubicacion']}"
-                
-                jobs.append({
-                    'titulo': titulo,
-                    'url': job['url'],
-                    'data': job_data
-                })
-                
-            except Exception as e:
-                debug_print(f"Error procesando empleo {idx}: {e}")
-                continue
+            print(f"  {idx} - {job['titulo'][:60]}")
         
-        return jobs
+        return job_cards[:25]
         
     except Exception as e:
         debug_print(f"Error en extract_jobs_from_listing: {e}")
         return []
+def extract_sections_from_text(text):
+    """
+    Busca encabezados comunes y separa 'responsabilidades' y 'requisitos' del resto.
+    Devuelve dict con keys: descripcion, responsabilidades, requisitos
+    """
+    if not text:
+        return {
+            "descripcion": "",
+            "responsabilidades": "No especificado",
+            "requisitos": "No especificado"
+        }
+
+    # Normalizar saltos
+    text = re.sub(r'\r\n?', '\n', text).strip()
+    # Patrón que detecta encabezados al inicio de línea
+    header_re = re.compile(
+        r'(?im)^(responsabilidades|responsabilidad|funciones|responsabilidades y funciones|requisitos|requerimientos|perfil)[\s:─\-]*$'
+    )
+
+    matches = list(header_re.finditer(text))
+    result = {
+        "descripcion": text,
+        "responsabilidades": "No especificado",
+        "requisitos": "No especificado"
+    }
+
+    if matches:
+        # Texto antes del primer encabezado -> descripción principal
+        first = matches[0]
+        before = text[: first.start()].strip()
+        result["descripcion"] = before if before else text.strip()
+
+        # Para cada encabezado, extraer su bloque hasta el siguiente encabezado
+        for i, m in enumerate(matches):
+            start = m.end()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            heading = m.group(1).lower()
+            content = text[start:end].strip()
+            # Guardar según heading
+            if "requis" in heading:
+                if content:
+                    result["requisitos"] = content
+            else:
+                # cualquier heading no-req lo consideramos responsabilidades/funciones
+                if content:
+                    # si ya existe, concatenar con doble salto para legibilidad
+                    if result["responsabilidades"] != "No especificado":
+                        result["responsabilidades"] += "\n\n" + content
+                    else:
+                        result["responsabilidades"] = content
+    else:
+        # fallback: buscar inline "Responsabilidades:" o "Requisitos:" en el texto
+        m_resp = re.search(r'(?is)Responsabilidad(?:es)?[:\s\-]+\n?\s*([\s\S]{20,2000})', text)
+        if m_resp:
+            result["responsabilidades"] = m_resp.group(1).strip()
+        m_req = re.search(r'(?is)(Requisitos|Requerimientos)[:\s\-]+\n?\s*([\s\S]{20,2000})', text)
+        if m_req:
+            result["requisitos"] = m_req.group(2).strip()
+        # mantener la descripcion como el texto original si no hubo matches
+
+    # limpieza final: normalizar saltos múltiples
+    for k in result:
+        if isinstance(result[k], str):
+            result[k] = re.sub(r'\n{3,}', '\n\n', result[k]).strip()
+
+    return result
+import re
+
+def normalize_single_line(text, stop_headers=None):
+    """
+    Normaliza una descripción multi-línea / con viñetas a UN único párrafo.
+    - elimina secciones finales como "Palabras clave", "OFRECEMOS", "BENEFICIOS"
+    - convierte viñetas en oraciones
+    - colapsa saltos de línea y espacios
+    - elimina oraciones duplicadas consecutivas o repetidas exactas
+    - retorna una sola línea que termina en punto.
+    """
+    if not text:
+        return ""
+
+    s = text
+
+    # 0) Normalize CRLF
+    s = re.sub(r'\r\n?', '\n', s)
+
+    # 1) Remove trailing sections that start with common headers (case-insensitive)
+    if stop_headers is None:
+        stop_headers = ['palabras clave', 'ofrecemos', 'beneficios', 'contacto', 'postular', 'reclutamiento']
+    # build pattern like (?is)\b(?:palabras clave|ofrecemos|beneficios)\b.*$
+    pat = r'(?is)\b(?:' + '|'.join(re.escape(h) for h in stop_headers) + r')\b.*$'
+    s = re.sub(pat, '', s).strip()
+
+    # 2) Remove obvious timestamps like "Hace 12 horas (actualizada)"
+    s = re.sub(r'(?is)\bhace\s+\d+\s+\w+.*$', '', s).strip()
+
+    # 3) Convert bullet marks to sentence separators
+    s = s.replace('•', '. ')
+    s = s.replace('·', '. ')
+    s = s.replace(' - ', '. ')
+    s = s.replace('•\u200b', '. ')  # invisible bullet varieties
+
+    # 4) Keep headings separated: replace "Resumen del Puesto" etc with markers
+    headings = ['Resumen del Puesto', 'Responsabilidades', 'Funciones', 'Requisitos', 'Detalles de la oferta laboral']
+    for h in headings:
+        s = re.sub(r'(?i)\b' + re.escape(h) + r'\b', '\n\n' + h + '\n', s)
+
+    # 5) Collapse remaining newlines into spaces
+    s = re.sub(r'[\n\r]+', ' ', s)
+
+    # 6) Split into sentences (simple heuristic), trim, and deduplicate exact sentences while preserving order
+    # Split on . ! ? followed by space (also treat as sentence end if followed by end-of-string)
+    parts = re.split(r'(?<=[\.\!\?])\s+', s)
+    clean_parts = []
+    seen = set()
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        # Ensure it ends with punctuation
+        if not re.search(r'[\.\!\?]$', p):
+            p = p + '.'
+        # Deduplicate exact sentences
+        key = p.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        clean_parts.append(p)
+
+    # 7) join into one line
+    result = ' '.join(clean_parts)
+    result = re.sub(r'\s{2,}', ' ', result).strip()
+
+    # 8) Remove accidental repeated phrases (if a phrase appears twice contiguous inside the line)
+    # simple: if the first 5 words repeated twice, remove second occurrence
+    words = result.split()
+    if len(words) > 10:
+        first5 = ' '.join(words[:5])
+        if first5 in result[len(first5):len(first5)*2+10]:
+            # remove second occurrence naive
+            result = result.replace(first5, '', 1).strip()
+            result = re.sub(r'\s{2,}', ' ', result)
+
+    # final punctuation
+    if result and not re.search(r'[\.\!\?]$', result):
+        result += '.'
+
+    return result
+
 
 def extract_job_details(driver, job_url):
-    """Extrae detalles completos de un empleo"""
+    """
+    Extrae detalles completos de un empleo
+    IMPROVED: Better waiting, scrolling, and selector strategies for SPA
+    """
     try:
         driver.get(job_url)
-        time.sleep(1.5)
         
-        # Título
+        # CRITICAL: Wait for React SPA to load
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "h1"))
+            )
+            time.sleep(2)  # Extra wait for dynamic content
+        except:
+            debug_print(f"Timeout esperando contenido")
+            return None
+        
+        # Scroll to trigger lazy loading
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(0.5)
+        driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(0.5)
+        
+        # Get full page text for fallback parsing
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+        
+        # ===== TÍTULO =====
         titulo = ""
         try:
             titulo = driver.find_element(By.TAG_NAME, "h1").text.strip()
         except:
             titulo = "Título no disponible"
         
-        # Empresa
+        # ===== EMPRESA =====
         empresa = "NA/NA"
         try:
-            # Buscar por varios selectores
-            for selector in ["a[href*='bolsa-trabajo']", "span[class*='empresa']", "div[class*='empresa']"]:
+            company_selectors = [
+                "a[href*='bolsa-trabajo']",
+                "a[href*='/empresas/']",
+                "[data-testid*='company']",
+                ".company-name",
+                "[class*='company']",
+                "[class*='empresa']",
+                "span[class*='CompanyName']",
+                "div[class*='CompanyName']"
+            ]
+            
+            for selector in company_selectors:
                 try:
                     elem = driver.find_element(By.CSS_SELECTOR, selector)
-                    if elem.text.strip():
-                        empresa = elem.text.strip()
+                    text = elem.text.strip()
+                    if text and len(text) > 2 and len(text) < 100:
+                        if text.lower() not in ['ver empresa', 'postular', 'guardar', 'compartir']:
+                            empresa = text
+                            break
+                except:
+                    continue
+            
+            # Fallback: Parse from page text
+            if empresa == "NA/NA":
+                lines = [l.strip() for l in page_text.split('\n') if l.strip()]
+                for i, line in enumerate(lines):
+                    if 'empresa' in line.lower() or 'compañía' in line.lower():
+                        for j in range(1, 4):
+                            if i + j < len(lines):
+                                candidate = lines[i + j]
+                                if candidate and len(candidate) > 2 and len(candidate) < 100:
+                                    skip_terms = ['méxico', 'cdmx', 'postula', 'ver', 'guardar', 'compartir']
+                                    if not any(term in candidate.lower() for term in skip_terms):
+                                        empresa = candidate
+                                        break
+                        if empresa != "NA/NA":
+                            break
+        except:
+            pass
+        
+        # ===== UBICACIÓN =====
+        ubicacion = "México"
+        try:
+            ubicaciones = ['CDMX', 'Ciudad de México', 'Jalisco', 'Nuevo León',
+                          'Monterrey', 'Guadalajara', 'Estado de México', 'Puebla',
+                          'Querétaro', 'Tijuana', 'Veracruz', 'Chihuahua', 'Sonora',
+                          'Cancún', 'Mérida', 'Aguascalientes', 'Guanajuato']
+            
+            location_selectors = [
+                "[data-testid*='location']",
+                "[class*='location']",
+                "[class*='ubicacion']",
+                "[class*='Ubicacion']",
+                "[class*='Location']",
+                "svg + span"
+            ]
+            
+            for selector in location_selectors:
+                try:
+                    elems = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for elem in elems:
+                        text = elem.text.strip()
+                        for ub in ubicaciones:
+                            if ub.lower() in text.lower():
+                                ubicacion = text
+                                break
+                        if ubicacion != "México":
+                            break
+                    if ubicacion != "México":
                         break
                 except:
                     continue
+            
+            if ubicacion == "México":
+                for ub in ubicaciones:
+                    if ub in page_text:
+                        for line in page_text.split('\n'):
+                            if ub in line and len(line) < 100:
+                                ubicacion = line.strip()
+                                break
+                        if ubicacion != "México":
+                            break
         except:
             pass
         
-        # Ubicación
-        ubicacion = "México"
-        try:
-            # Buscar span o div con ubicación
-            page_text = driver.find_element(By.TAG_NAME, "body").text
-            ubicaciones = ['CDMX', 'Ciudad de México', 'Jalisco', 'Nuevo León',
-                          'Monterrey', 'Guadalajara', 'Estado de México', 'Puebla',
-                          'Querétaro', 'Tijuana', 'Veracruz', 'Chihuahua', 'Sonora']
-            for ub in ubicaciones:
-                if ub in page_text:
-                    ubicacion = ub
-                    break
-        except:
-            pass
-        
-        # Salario
+        # ===== SALARIO =====
         salario = "No especificado"
         try:
-            page_text = driver.find_element(By.TAG_NAME, "body").text
-            salary_match = re.search(r'\$[\d,]+\s*[-a]\s*\$?[\d,]*\s*[Mm]ensual', page_text)
-            if salary_match:
-                salario = salary_match.group(0)
+            salary_patterns = [
+                r'\$\s*[\d,]+(?:\.\d{2})?\s*(?:-|a)\s*\$?\s*[\d,]+',
+                r'\$\s*[\d,]+\s+(?:MXN|pesos|mensual)',
+                r'[\d,]+\s*[-a]\s*[\d,]+\s+(?:MXN|pesos)',
+            ]
+            
+            for pattern in salary_patterns:
+                match = re.search(pattern, page_text, re.IGNORECASE)
+                if match:
+                    salario = match.group(0).strip()
+                    break
+            
+            if salario == "No especificado":
+                salary_selectors = [
+                    "[data-testid*='salary']",
+                    "[class*='salary']",
+                    "[class*='salario']"
+                ]
+                for selector in salary_selectors:
+                    try:
+                        elem = driver.find_element(By.CSS_SELECTOR, selector)
+                        text = elem.text.strip()
+                        if '$' in text or 'mensual' in text.lower():
+                            salario = text
+                            break
+                    except:
+                        continue
         except:
             pass
         
-        # Descripción
+        # ===== DESCRIPCIÓN =====
         descripcion = ""
         try:
-            # Buscar sección de descripción
             desc_selectors = [
-                "div[class*='descripcion']",
-                "div[class*='description']",
-                "section[class*='descripcion']",
-                "div[data-testid*='description']"
+                "[data-testid*='description']",
+                "[class*='description']",
+                "[class*='descripcion']",
+                "[class*='JobDescription']",
+                "article",
+                "section[class*='detail']"
             ]
             
             for selector in desc_selectors:
                 try:
                     elem = driver.find_element(By.CSS_SELECTOR, selector)
-                    if elem.text and len(elem.text) > 100:
-                        descripcion = elem.text[:5000]
+                    text = elem.text.strip()
+                    if len(text) > 100:
+                        descripcion = text
                         break
                 except:
                     continue
             
-            if not descripcion:
-                # Buscar párrafos largos
+            # Fallback: collect paragraphs
+            if not descripcion or len(descripcion) < 100:
                 paragraphs = driver.find_elements(By.TAG_NAME, "p")
+                desc_parts = []
                 for p in paragraphs:
-                    if len(p.text) > 200:
-                        descripcion = p.text[:5000]
+                    text = p.text.strip()
+                    if len(text) > 50:
+                        desc_parts.append(text)
+                if desc_parts:
+                    descripcion = '\n\n'.join(desc_parts[:10])
+            
+            # Fallback 2: parse page text structure
+            if not descripcion or len(descripcion) < 100:
+                lines = page_text.split('\n')
+                collecting = False
+                collected_lines = []
+                
+                for line in lines:
+                    line_lower = line.lower()
+                    if any(keyword in line_lower for keyword in ['descripción', 'description', 'sobre el puesto']):
+                        collecting = True
+                        continue
+                    if collecting and any(keyword in line_lower for keyword in ['requisitos', 'postular', 'contacto']):
                         break
+                    if collecting and line.strip():
+                        collected_lines.append(line.strip())
+                
+                if collected_lines:
+                    descripcion = '\n'.join(collected_lines[:50])
         except:
             pass
         
-        if not descripcion:
+        if not descripcion or len(descripcion) < 50:
             descripcion = f"{titulo} - {empresa} - {ubicacion}"
         
-        return {
-            "titulo": titulo,
-            "empresa": empresa,
-            "ubicacion": ubicacion,
-            "salario": salario,
-            "descripcion": descripcion,
-        }
+        if len(descripcion) > 4000:
+            descripcion = descripcion[:4000]
         
+        sections = extract_sections_from_text(descripcion)
+        descripcion_principal = sections["descripcion"]
+        responsabilidades_text = sections["responsabilidades"]
+        requisitos_text = sections["requisitos"]
+        descripcion = normalize_single_line(descripcion_principal)
+
+
+        return {
+            'titulo': titulo,
+            'empresa': empresa,
+            'ubicacion': ubicacion,
+            'salario': salario,
+            'descripcion': descripcion,
+            'responsabilidades': responsabilidades_text,
+            'requisitos': requisitos_text
+        }
+    
     except Exception as e:
-        debug_print(f"Error extrayendo detalles: {e}")
+        debug_print(f"Error en extract_job_details: {e}")
         return None
 
 def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
     """Scrape una categoría completa"""
+    seen_job_urls = set()
     global total_jobs_scraped, jobs_this_session, EMPLEOS, HASHES_GLOBALES, current_category
     
     current_category = nombre_cat
@@ -611,7 +808,7 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
         
         print(f"\nProcesando página {pagina}/{total_paginas} de {nombre_cat}")
         debug_print(f"URL: {url}")
-        
+
         try:
             driver.get(url)
             time.sleep(1.5)
@@ -637,41 +834,49 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                 try:
                     titulo = job_info.get('titulo', 'Sin título')
                     job_url = job_info.get('url', '')
+
+                    if not job_url:
+                        print(f"  {i+1}/{len(jobs_found)}: No URL para {titulo[:50]}, omitiendo")
+                        continue
+
+                    if job_url in seen_job_urls:
+                        debug_print(f"  {i+1}: URL repetida, saltando")
+                        continue
+
+                    seen_job_urls.add(job_url)
+
+                    driver = recrear_driver_si_necesario(driver)
+                    details = extract_job_details(driver, job_url)
                     
-                    if 'data' in job_info:
-                        details = job_info['data']
-                    elif job_url:
-                        driver = recrear_driver_si_necesario(driver)
-                        details = extract_job_details(driver, job_url)
-                        if not details:
-                            continue
-                    else:
-                        details = {
-                            'titulo': titulo,
-                            'empresa': 'NA/NA',
-                            'ubicacion': 'México',
-                            'salario': 'No especificado',
-                            'descripcion': ""
-                        }
+                    if not details:
+                        print(f"    ^ No se pudieron extraer detalles, omitiendo")
+                        continue
                     
-                    # Hash = descripcion + ubicacion + empresa (same job, different city/company = not duplicate)
+                    # Hash = descripcion + ubicacion + empresa
                     ubicacion = details.get("ubicacion", "México")
                     empresa = details.get("empresa", "NA/NA")
-                    hash_content = details.get("descripcion", titulo) + "|" + ubicacion + "|" + empresa
+                    hash_content = (
+                        job_url + "|" +
+                        details.get("descripcion", titulo) + "|" +
+                        ubicacion + "|" +
+                        empresa
+                    )
                     hash_empleo = calcular_hash(hash_content)
                     
                     if hash_empleo in HASHES_GLOBALES:
-                        print(f"  ^ [DUPLICADO]")
+                        print(f"    ^ [DUPLICADO]")
                         continue
                     
                     EMPLEOS.append({
                         "Id Interno": f"BUM-MX-{url_cat[:15]}-{pagina}-{i+1}",
                         "titulo": details.get("titulo", titulo),
                         "descripcion": details.get("descripcion", ""),
+                        "responsabilidades": details.get("responsabilidades", "No especificado"),
+                        "requisitos": details.get("requisitos", "No especificado"),
                         "Empresa": empresa,
                         "Fuente": "Bumeran México",
                         "Tipo Portal": "Tradicional",
-                        "url": job_url if job_url else url,
+                        "url": job_url,
                         "Pais": COUNTRY_CONFIG["name"],
                         "ubicacion": ubicacion,
                         "salario": details.get("salario", "No especificado"),
@@ -682,6 +887,8 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                         "hash Descripcion": hash_empleo,
                         "fecha": date.today().strftime("%d/%m/%Y")
                     })
+                    from pprint import pprint
+                    pprint(EMPLEOS)
                     
                     HASHES_GLOBALES.add(hash_empleo)
                     total_jobs_scraped += 1

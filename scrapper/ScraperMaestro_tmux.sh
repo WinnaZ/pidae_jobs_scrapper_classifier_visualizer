@@ -186,9 +186,9 @@ run_mexico() {
     sleep 1
     tmux send-keys -t "$SESSION_NAME:0.1" "python Bumeran_MX.py" C-m
     sleep 1
-    tmux send-keys -t "$SESSION_NAME:0.2" "python Indeed_MX.py" C-m
+    tmux send-keys -t "$SESSION_NAME:0.2" "python Computrabajo_MX.py" C-m
     
-    show_layout_info_3 "México" "$SESSION_NAME" "OCC Mundial" "Bumeran MX" "Indeed MX"
+    show_layout_info_3 "México" "$SESSION_NAME" "OCC Mundial" "Bumeran MX" "Computrabajo MX"
     tmux attach-session -t "$SESSION_NAME"
 }
 

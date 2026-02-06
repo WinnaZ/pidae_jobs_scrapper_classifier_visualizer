@@ -213,7 +213,7 @@ def extract_job_details(driver, job_url):
         try:
             empresa = driver.find_element(By.CSS_SELECTOR, 'a.topcard__org-name-link, span.topcard__flavor, a[data-tracking-control-name="public_jobs_topcard-org-name"]').text.strip()
         except:
-            empresa = "Confidencial"
+            empresa = "NA/NA"
         
         try:
             ubicacion = driver.find_element(By.CSS_SELECTOR, 'span.topcard__flavor--bullet').text.strip()
