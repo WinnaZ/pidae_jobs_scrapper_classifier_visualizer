@@ -173,7 +173,7 @@ def create_driver():
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
     driver.set_page_load_timeout(5)
-    driver.implicitly_wait(1)
+    driver.implicitly_wait(3)
     
     return driver
 
@@ -314,7 +314,7 @@ def extract_job_details(driver, job_url):
     try:
         try:
             driver.get(job_url)
-            WebDriverWait(driver, 0.3).until(
+            WebDriverWait(driver, 1).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "a.js-o-link"))
             )
         except:
