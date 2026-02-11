@@ -364,7 +364,7 @@ def extract_job_details(driver, job_url):
         except:
             pass
         
-        # Extraer datos del JSON embebido 
+        # Extraer datos del JSON embebido
         try:
             elem = driver.find_element(By.ID, "__NEXT_DATA__").get_attribute("innerHTML")
             data = json.loads(elem)
@@ -378,6 +378,9 @@ def extract_job_details(driver, job_url):
             # Descripción (del JSON - limpia, sin menú ni footer)
             descripcion = job_data.get("descricao", "").strip()
             if descripcion:
+                # Limpiar saltos de línea y espacios múltiples
+                descripcion = descripcion.replace('\n', ' ').replace('\r', ' ')
+                descripcion = re.sub(r'\s+', ' ', descripcion).strip()
                 details["descripcion"] = descripcion
             
             # Salario
@@ -400,12 +403,13 @@ def extract_job_details(driver, job_url):
             # Fallback: intentar extraer descripción del DOM
             try:
                 desc_elem = driver.find_element(By.CSS_SELECTOR, "div.job-description")
-                details["descripcion"] = desc_elem.text.strip()[:4000]
+                descripcion = desc_elem.text.strip()[:4000]
+                descripcion = descripcion.replace('\n', ' ').replace('\r', ' ')
+                descripcion = re.sub(r'\s+', ' ', descripcion).strip()
+                details["descripcion"] = descripcion
             except:
                 pass
         
-        from pprint import pprint
-        pprint(details)
         return details
         
     except Exception as e:
