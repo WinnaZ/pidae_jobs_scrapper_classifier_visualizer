@@ -339,7 +339,7 @@ def close_popups(driver):
         pass
 
 def extract_job_details(driver, job_url):
-    """Extrae los detalles de una vaga específica - versión ultra rápida"""
+    """Extrae los detalles de una vaga específica - versión"""
     try:
         try:
             driver.get(job_url)
@@ -364,38 +364,48 @@ def extract_job_details(driver, job_url):
         except:
             pass
         
-        # Empresa
-        elem = driver.find_element(By.ID, "__NEXT_DATA__").get_attribute("innerHTML")
-        data = json.loads(elem)
-        empresa = (
-            data.get("props", {})
-                .get("pageProps", {})
-                .get("jobAdData", {})
-                .get("contratante", {})
-                .get("nome", "")
-                .strip()
-        )
-        if empresa:
-            details["empresa"] = empresa.lower().capitalize()
-        
-        # Ubicación
-        for sel in ["[class*='ocation']", "[class*='ocal']"]:
-            try:
-                elem = driver.find_element(By.CSS_SELECTOR, sel)
-                txt = elem.text.strip()
-                if txt and len(txt) > 2:
-                    details['ubicacion'] = txt
-                    break
-            except:
-                continue
-        
-        # Descripción - body text
+        # Extraer datos del JSON embebido 
         try:
-            body = driver.find_element(By.TAG_NAME, "body")
-            details['descripcion'] = body.text[:4000]
-        except:
-            pass
+            elem = driver.find_element(By.ID, "__NEXT_DATA__").get_attribute("innerHTML")
+            data = json.loads(elem)
+            job_data = data.get("props", {}).get("pageProps", {}).get("jobAdData", {})
+            
+            # Empresa
+            empresa = job_data.get("contratante", {}).get("nome", "").strip()
+            if empresa:
+                details["empresa"] = empresa
+            
+            # Descripción (del JSON - limpia, sin menú ni footer)
+            descripcion = job_data.get("descricao", "").strip()
+            if descripcion:
+                details["descripcion"] = descripcion
+            
+            # Salario
+            salario = job_data.get("faixaSalarial", "").strip()
+            if salario:
+                details["salario"] = salario
+            
+            # Ubicación
+            vagas = job_data.get("vagas", [])
+            if vagas:
+                cidade = vagas[0].get("cidade", "")
+                uf = vagas[0].get("uf", "")
+                if cidade and uf:
+                    details["ubicacion"] = f"{cidade} - {uf}"
+                elif cidade:
+                    details["ubicacion"] = cidade
+                    
+        except Exception as e:
+            debug_print(f"Error extrayendo JSON: {e}")
+            # Fallback: intentar extraer descripción del DOM
+            try:
+                desc_elem = driver.find_element(By.CSS_SELECTOR, "div.job-description")
+                details["descripcion"] = desc_elem.text.strip()[:4000]
+            except:
+                pass
         
+        from pprint import pprint
+        pprint(details)
         return details
         
     except Exception as e:
