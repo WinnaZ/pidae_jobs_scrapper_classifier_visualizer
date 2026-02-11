@@ -887,8 +887,8 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                         "hash Descripcion": hash_empleo,
                         "fecha": date.today().strftime("%d/%m/%Y")
                     })
-                    from pprint import pprint
-                    pprint(EMPLEOS)
+                    # from pprint import pprint
+                    # pprint(EMPLEOS)
                     
                     HASHES_GLOBALES.add(hash_empleo)
                     total_jobs_scraped += 1
