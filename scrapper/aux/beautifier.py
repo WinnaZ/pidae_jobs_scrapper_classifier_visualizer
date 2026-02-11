@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-JSON Beautifier - Converts \n escape sequences to actual newlines in JSON string values.
+JSON Beautifier - Replaces newlines in JSON string values with spaces.
 
 Usage:
     python beautifier.py <path_to_json_file_or_folder>
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
 
 def fix_newlines(obj):
-    """Recursively replace \\n with actual newlines in all string values."""
+    """Recursively replace newlines with spaces in all string values."""
     if isinstance(obj, str):
-        return obj.replace("\\n", "\n")
+        # Replace actual newlines with a space, then collapse multiple spaces
+        return re.sub(r'\s+', ' ', obj.replace('\n', ' ')).strip()
     elif isinstance(obj, dict):
         return {k: fix_newlines(v) for k, v in obj.items()}
     elif isinstance(obj, list):
