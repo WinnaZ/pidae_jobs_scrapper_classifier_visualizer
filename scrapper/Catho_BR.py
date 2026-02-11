@@ -409,7 +409,7 @@ def extract_job_details(driver, job_url):
                 details["descripcion"] = descripcion
             except:
                 pass
-        
+        print(details)
         return details
         
     except Exception as e:
