@@ -379,7 +379,7 @@ def extract_job_details(driver, job_url):
             descripcion = job_data.get("descricao", "").strip()
             if descripcion:
                 # Limpiar saltos de línea y espacios múltiples
-                descripcion = descripcion.replace('\n', ' ').replace('\r', ' ')
+                descripcion = descripcion.replace('\n', ' ').replace('\r', ' ').replace('\n', ' ')
                 descripcion = re.sub(r'\s+', ' ', descripcion).strip()
                 details["descripcion"] = descripcion
             
