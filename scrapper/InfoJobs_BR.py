@@ -504,6 +504,7 @@ def scrape_categoria(driver, nombre_cat, slug_cat, cat_index, total_cats):
                 "hash Descripcion": hash_empleo,
                 "fecha": date.today().strftime("%d/%m/%Y")
             })
+            print(EMPLEOS[:-1])
             
             HASHES_GLOBALES.add(hash_empleo)
             total_jobs_scraped += 1
