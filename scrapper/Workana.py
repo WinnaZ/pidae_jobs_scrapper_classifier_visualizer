@@ -51,24 +51,24 @@ total_jobs_scraped = 0
 
 def signal_handler(sig, frame):
     """Handle CTRL+C gracefully by saving checkpoint"""
-    print(f"\n\n⚠️  Interrupción detectada (CTRL+C)")
-    print("💾 Guardando checkpoint para poder reanudar...")
+    print(f"\n\n  Interrupción detectada (CTRL+C)")
+    print(" Guardando checkpoint para poder reanudar...")
     
     if checkpoint_manager:
         checkpoint_data = ComputrabajoCheckpoint.create_checkpoint_data(
             current_area_index, current_page, list(areas_completed), total_jobs_scraped
         )
         checkpoint_manager.save_checkpoint(checkpoint_data)
-        print("✅ Checkpoint guardado exitosamente")
+        print(" Checkpoint guardado exitosamente")
     
     if driver:
         try:
             driver.quit()
-            print("🔒 Driver cerrado correctamente")
+            print(" Driver cerrado correctamente")
         except:
             pass
     
-    print("👋 Hasta la próxima! Usa el mismo comando para reanudar.")
+    print(" Hasta la próxima! Usa el mismo comando para reanudar.")
     sys.exit(0)
 
 # Register signal handler
@@ -102,7 +102,7 @@ def guardar_datos_incremental(empleos, area, archivo_base="output_jobs/Computrab
     with open(nombre_archivo, 'w', encoding='utf-8') as f:
         json.dump(todos_empleos, f, ensure_ascii=False, indent=4)
     
-    print(f"\n📁 Guardado: {nombre_archivo}")
+    print(f"\n Guardado: {nombre_archivo}")
     print(f"  - Empleos nuevos: {len(empleos)}")
     print(f"  - Total en archivo: {len(todos_empleos)}")
     
@@ -184,7 +184,7 @@ def verificar_pagina_existe(driver, url, intentos=3):
 def obtener_total_paginas(driver, categoria_slug):
     url_base = f"https://mx.computrabajo.com/trabajo-de-{categoria_slug}"
     
-    print(f"\n🔍 Analizando cargo: {categoria_slug}")
+    print(f"\n Analizando cargo: {categoria_slug}")
     
     # Verificar primera página
     existe, num_empleos = verificar_pagina_existe(driver, f"{url_base}?p=1")
@@ -226,7 +226,7 @@ def obtener_total_paginas(driver, categoria_slug):
             break
         ultima_pagina_valida -= 1
 
-    print(f"📊 Total de páginas encontradas: {ultima_pagina_valida}")
+    print(f" Total de páginas encontradas: {ultima_pagina_valida}")
     return ultima_pagina_valida
 
 # Crear perfil temporal
@@ -297,19 +297,19 @@ pagina_inicio = 1
 carpeta_salida = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output_jobs")
 os.makedirs(carpeta_salida, exist_ok=True)
 
-print("🇲🇽 Iniciando scraping de Computrabajo MÉXICO...")
+print(" Iniciando scraping de Computrabajo MÉXICO...")
 if args.debug:
-    print("🔧 Modo debug activado - Se mostrarán mensajes detallados")
+    print(" Modo debug activado - Se mostrarán mensajes detallados")
 
 # Usar directamente la lista predeterminada
 areas = areas_predeterminadas
-print(f"📋 Áreas a procesar: {', '.join(areas[:5])}... ({len(areas)} total)")
+print(f" Áreas a procesar: {', '.join(areas[:5])}... ({len(areas)} total)")
 
 # HASH GLOBAL para evitar duplicados entre categorías
 HASHES_GLOBALES = set()
 
 # Cargar hashes existentes de todos los archivos
-print("🔄 Cargando hashes existentes para evitar duplicados entre categorías...")
+print(" Cargando hashes existentes para evitar duplicados entre categorías...")
 for area in areas:
     timestamp = date.today().strftime("%Y%m%d")
     archivo_existente = f"output_jobs/Computrabajo_MX_{area}_{timestamp}.json"
@@ -324,7 +324,7 @@ for area in areas:
         except:
             pass
 
-print(f"✅ Cargados {len(HASHES_GLOBALES)} hashes existentes")
+print(f" Cargados {len(HASHES_GLOBALES)} hashes existentes")
 
 # =============================================================================
 # SISTEMA DE CHECKPOINT - REANUDAR SESIÓN INTERRUMPIDA
@@ -332,15 +332,15 @@ print(f"✅ Cargados {len(HASHES_GLOBALES)} hashes existentes")
 should_resume, checkpoint_data, checkpoint_manager = get_resume_info("computrabajo_mx")
 
 if should_resume:
-    print("🔄 Reanudando desde checkpoint...")
+    print(" Reanudando desde checkpoint...")
     start_area_index = checkpoint_data.get('current_area_index', 0)
     start_page = checkpoint_data.get('current_page', 1)
     areas_completed = set(checkpoint_data.get('areas_completed', []))
     total_jobs_scraped = checkpoint_data.get('total_jobs_scraped', 0)
-    print(f"📍 Iniciando desde área #{start_area_index + 1}, página {start_page}")
-    print(f"📊 Jobs recolectados previamente: {total_jobs_scraped}")
+    print(f" Iniciando desde área #{start_area_index + 1}, página {start_page}")
+    print(f" Jobs recolectados previamente: {total_jobs_scraped}")
 else:
-    print("🚀 Iniciando scraping completo desde el principio...")
+    print(" Iniciando scraping completo desde el principio...")
     start_area_index = 0
     start_page = 1
     areas_completed = set()
@@ -361,26 +361,26 @@ try:
             
         # Skip areas that were already completed in previous session
         if area in areas_completed:
-            print(f"⏭️  Saltando área ya completada: {area}")
+            print(f"⏭  Saltando área ya completada: {area}")
             continue
             
         # Update global variables for signal handler
         current_area_index = area_index
         
         print(f"\n{'='*80}")
-        print(f"🇲🇽 PROCESANDO ÁREA {area_index + 1}/{len(areas)}: {area}")
+        print(f" PROCESANDO ÁREA {area_index + 1}/{len(areas)}: {area}")
         print(f"{'='*80}")
         
         # Obtener el número total de páginas para esta área
         total_paginas = obtener_total_paginas(driver, area)
-        print(f"📄 Encontradas {total_paginas} páginas para {area}")
-        print("⚙️  Comenzando extracción de empleos...")
+        print(f" Encontradas {total_paginas} páginas para {area}")
+        print("  Comenzando extracción de empleos...")
         
         # Determine starting page (resume from checkpoint if this is the current area)
         current_start_page = start_page if area_index == start_area_index else pagina_inicio
         
         for pagina in range(current_start_page, total_paginas + 1):
-            print(f"\n📄 Procesando página {pagina}/{total_paginas} de {area}")
+            print(f"\n Procesando página {pagina}/{total_paginas} de {area}")
             
             # Update global variables for signal handler
             current_page = pagina
@@ -404,7 +404,7 @@ try:
                     EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.js-o-link"))
                 )
             except TimeoutException:
-                print(f"⚠️  No se encontraron enlaces en página {pagina}")
+                print(f"  No se encontraron enlaces en página {pagina}")
                 continue
 
             links_empleos = [a.get_attribute("href") for a in driver.find_elements(By.CSS_SELECTOR, "a.js-o-link")]
@@ -441,7 +441,7 @@ try:
                 if hash_empleo in HASHES_GLOBALES:
                     debug_print(f"    [DUPLICADO TEMPRANO] Saltando empleo {i+1} - ya existe")
                     if not args.debug:
-                        print(f"  {i} - [DUPLICADO] 🔄 Saltando (ahorrando ~6s)...")
+                        print(f"  {i} - [DUPLICADO]  Saltando (ahorrando ~6s)...")
                     continue
                 
                 # Si no es duplicado, extraer el resto de los datos
@@ -489,7 +489,7 @@ try:
                     "fecha": today
                 })
                 HASHES_GLOBALES.add(hash_empleo)
-                debug_print(f"    [NUEVO] ✅ Empleo agregado")
+                debug_print(f"    [NUEVO]  Empleo agregado")
                 
                 # Update job counts for checkpoint
                 jobs_this_session += 1
@@ -497,16 +497,16 @@ try:
         
         # Guardado incremental por área
         print(f"\n{'='*60}")
-        print(f"✅ Área '{area}' completada - Guardando datos...")
+        print(f" Área '{area}' completada - Guardando datos...")
         print(f"{'='*60}")
         guardar_datos_incremental(EMPLEOS, area)
         EMPLEOS = []  # Limpiar lista después de guardar
         
         # Mark this area as completed
         areas_completed.add(area)
-        print(f"📊 Área completada: {area}")
-        print(f"📈 Jobs esta sesión: {jobs_this_session}")
-        print(f"📊 Total jobs acumulados: {total_jobs_scraped}")
+        print(f" Área completada: {area}")
+        print(f" Jobs esta sesión: {jobs_this_session}")
+        print(f" Total jobs acumulados: {total_jobs_scraped}")
         
         # Save checkpoint after completing area
         checkpoint_data = ComputrabajoCheckpoint.create_checkpoint_data(
@@ -515,24 +515,24 @@ try:
         checkpoint_manager.save_checkpoint(checkpoint_data)
     
     # All areas completed successfully
-    print(f"\n🎉 ¡SCRAPING COMPLETADO EXITOSAMENTE!")
-    print(f"📊 Jobs recolectados esta sesión: {jobs_this_session}")
-    print(f"📈 Total jobs procesados: {total_jobs_scraped}")
-    print(f"📋 Áreas procesadas: {len(areas)}")
+    print(f"\n ¡SCRAPING COMPLETADO EXITOSAMENTE!")
+    print(f" Jobs recolectados esta sesión: {jobs_this_session}")
+    print(f" Total jobs procesados: {total_jobs_scraped}")
+    print(f" Áreas procesadas: {len(areas)}")
     
     # Clear checkpoint since we completed successfully
     checkpoint_manager.clear_checkpoint()
     
 except KeyboardInterrupt:
-    print(f"\n⚠️  Scraping interrumpido por el usuario")
-    print(f"💾 Checkpoint guardado automáticamente")
-    print(f"📊 Jobs recolectados esta sesión: {jobs_this_session}")
-    print(f"📈 Total jobs hasta ahora: {total_jobs_scraped}")
-    print(f"🔄 Ejecuta el script nuevamente para continuar desde donde se detuvo")
+    print(f"\n  Scraping interrumpido por el usuario")
+    print(f" Checkpoint guardado automáticamente")
+    print(f" Jobs recolectados esta sesión: {jobs_this_session}")
+    print(f" Total jobs hasta ahora: {total_jobs_scraped}")
+    print(f" Ejecuta el script nuevamente para continuar desde donde se detuvo")
     
     # Save any remaining jobs before exiting
     if EMPLEOS:
-        print(f"💾 Guardando {len(EMPLEOS)} jobs pendientes...")
+        print(f" Guardando {len(EMPLEOS)} jobs pendientes...")
         guardar_datos_incremental(EMPLEOS, f"{area}_partial")
     
     sys.exit(0)
@@ -541,6 +541,6 @@ finally:
     driver.quit()
     shutil.rmtree(temp_profile_dir, ignore_errors=True)
 
-print(f"\n✅ Proceso completado - Todos los datos guardados por área en output_jobs/")
-print(f"🇲🇽 Archivos: Computrabajo_MX_[area]_[fecha].json")
-print(f"🌐 Fuente: https://mx.computrabajo.com/")
+print(f"\n Proceso completado - Todos los datos guardados por área en output_jobs/")
+print(f" Archivos: Computrabajo_MX_[area]_[fecha].json")
+print(f" Fuente: https://mx.computrabajo.com/")

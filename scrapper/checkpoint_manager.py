@@ -29,24 +29,24 @@ class CheckpointManager:
         try:
             with open(self.checkpoint_file, 'w', encoding='utf-8') as f:
                 json.dump(checkpoint, f, ensure_ascii=False, indent=2)
-            print(f"💾 Checkpoint guardado: {self.checkpoint_file}")
+            print(f" Checkpoint guardado: {self.checkpoint_file}")
         except Exception as e:
-            print(f"❌ Error guardando checkpoint: {e}")
+            print(f" Error guardando checkpoint: {e}")
     
     def load_checkpoint(self) -> Optional[Dict[str, Any]]:
         """Load checkpoint data from file"""
         if not os.path.exists(self.checkpoint_file):
-            print(f"ℹ️ No se encontró checkpoint previo para {self.scraper_name}")
+            print(f"ℹ No se encontró checkpoint previo para {self.scraper_name}")
             return None
         
         try:
             with open(self.checkpoint_file, 'r', encoding='utf-8') as f:
                 checkpoint = json.load(f)
             
-            print(f"📂 Checkpoint encontrado de {checkpoint.get('timestamp', 'fecha desconocida')}")
+            print(f" Checkpoint encontrado de {checkpoint.get('timestamp', 'fecha desconocida')}")
             return checkpoint.get('data', {})
         except Exception as e:
-            print(f"❌ Error cargando checkpoint: {e}")
+            print(f" Error cargando checkpoint: {e}")
             return None
     
     def clear_checkpoint(self) -> None:
@@ -54,9 +54,9 @@ class CheckpointManager:
         if os.path.exists(self.checkpoint_file):
             try:
                 os.remove(self.checkpoint_file)
-                print(f"🗑️  Checkpoint eliminado: {self.checkpoint_file}")
+                print(f"  Checkpoint eliminado: {self.checkpoint_file}")
             except Exception as e:
-                print(f"❌ Error eliminando checkpoint: {e}")
+                print(f" Error eliminando checkpoint: {e}")
     
     def has_checkpoint(self) -> bool:
         """Check if a checkpoint file exists"""
@@ -129,7 +129,7 @@ class LinkedInCheckpoint:
 
 def ask_user_resume_choice(checkpoint_data: Dict[str, Any], scraper_name: str) -> bool:
     """Ask user if they want to resume from checkpoint"""
-    print(f"\n🔄 CHECKPOINT ENCONTRADO para {scraper_name}")
+    print(f"\n CHECKPOINT ENCONTRADO para {scraper_name}")
     print("="*60)
     
     if scraper_name.lower() == "workana":

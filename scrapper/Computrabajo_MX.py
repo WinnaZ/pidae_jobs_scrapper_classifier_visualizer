@@ -546,8 +546,34 @@ try:
                     if requisitominimo:
                         desc_completa += "\n\nRequerimientos:\n" + requisitominimo
                     
+                    desc_completa = desc_completa.replace('\n', ' ').replace('\r', ' ').replace('\n', ' ')
+                    
                     # Calcular hash para verificar duplicados
                     hash_empleo = calcular_hash(desc_completa)
+
+                    # Aptitudes
+                    aptitudes = ""
+                    try:
+                        aptitudes_elements = driver.find_elements(By.CSS_SELECTOR, "span[data-skill-id]")
+                        if aptitudes_elements:
+                            aptitudes_list = [elem.text.strip() for elem in aptitudes_elements if elem.text.strip()]
+                            aptitudes = ", ".join(aptitudes_list)
+                    except:
+                        pass
+                    if not aptitudes:
+                        aptitudes = "No especificado"
+
+                    # Palabras clave
+                    palabras_clave = ""
+                    try:
+                        elem = driver.find_element(By.XPATH, "//p[contains(text(), 'Palabras clave')]")
+                        if elem:
+                            text = elem.text.strip()
+                            palabras_clave = text.split("Palabras clave:")[-1].strip() if "Palabras clave:" in text else text
+                    except:
+                        pass
+                    if not palabras_clave:
+                        palabras_clave = "No especificado"
                     
                     # DETECCIÓN DE DUPLICADOS
                     if hash_empleo in HASHES_GLOBALES:
@@ -562,6 +588,8 @@ try:
                         "Id Interno": f"MX-{area}-{pagina}-{i+1}",
                         "titulo": tituloPuesto,
                         "descripcion": desc_completa,
+                        "aptitudes": aptitudes,
+                        "palabras_clave": palabras_clave,
                         "Empresa": nombre_empresa,
                         "Fuente": "ComputrabajoMX",
                         "Tipo Portal": "Tradicional",
@@ -575,6 +603,7 @@ try:
                         "hash Descripcion": hash_empleo,
                         "fecha": today
                     })
+                    #print(EMPLEOS[:-1])
                     HASHES_GLOBALES.add(hash_empleo)
                     debug_print(f"    [NUEVO] Empleo agregado")
                     
