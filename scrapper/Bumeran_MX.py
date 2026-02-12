@@ -542,21 +542,20 @@ def normalize_single_line(text, stop_headers=None):
 
     return result
 
-
 def extract_job_details(driver, job_url):
     """
-    Extrae detalles completos de un empleo
-    IMPROVED: Better waiting, scrolling, and selector strategies for SPA
+    Extrae detalles completos de un empleo - PRECISE VERSION
+    Based on actual Bumeran HTML structure
     """
     try:
         driver.get(job_url)
         
-        # CRITICAL: Wait for React SPA to load
+        # Wait for React SPA to load
         try:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.TAG_NAME, "h1"))
             )
-            time.sleep(2)  # Extra wait for dynamic content
+            time.sleep(2)
         except:
             debug_print(f"Timeout esperando contenido")
             return None
@@ -567,203 +566,209 @@ def extract_job_details(driver, job_url):
         driver.execute_script("window.scrollTo(0, 0);")
         time.sleep(0.5)
         
-        # Get full page text for fallback parsing
-        page_text = driver.find_element(By.TAG_NAME, "body").text
-        
         # ===== TÍTULO =====
         titulo = ""
         try:
             titulo = driver.find_element(By.TAG_NAME, "h1").text.strip()
         except:
             titulo = "Título no disponible"
+        # breakpoint()
+        # driver.source_code()
         
         # ===== EMPRESA =====
         empresa = "NA/NA"
         try:
-            company_selectors = [
-                "a[href*='bolsa-trabajo']",
-                "a[href*='/empresas/']",
-                "[data-testid*='company']",
-                ".company-name",
-                "[class*='company']",
-                "[class*='empresa']",
-                "span[class*='CompanyName']",
-                "div[class*='CompanyName']"
-            ]
+            # PRIMARY METHOD: Find span with data-url pointing to empresa profile
+            # Structure: <span data-url="/perfiles/empresa_..."><div>Company Name</div></span>
+            try:
+                empresa_span = driver.find_element(By.CSS_SELECTOR, 'span[data-url*="/perfiles/empresa_"]')
+                empresa_div = empresa_span.find_element(By.TAG_NAME, "div")
+                text = empresa_div.text.strip()
+                if text and len(text) > 1:
+                    empresa = text
+            except:
+                pass
             
-            for selector in company_selectors:
+            # FALLBACK 1: Try alternative attribute selector
+            if empresa == "NA/NA":
                 try:
-                    elem = driver.find_element(By.CSS_SELECTOR, selector)
-                    text = elem.text.strip()
-                    if text and len(text) > 2 and len(text) < 100:
-                        if text.lower() not in ['ver empresa', 'postular', 'guardar', 'compartir']:
+                    empresa_elem = driver.find_element(By.CSS_SELECTOR, '[data-url*="/perfiles/empresa_"] div')
+                    text = empresa_elem.text.strip()
+                    if text and len(text) > 1:
+                        empresa = text
+                except:
+                    pass
+            
+            # FALLBACK 2: Look for link to empresa profile page
+            if empresa == "NA/NA":
+                try:
+                    links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/perfiles/empresa_']")
+                    for link in links:
+                        text = link.text.strip()
+                        if text and len(text) > 1 and len(text) < 100:
                             empresa = text
                             break
                 except:
-                    continue
-            
-            # Fallback: Parse from page text
+                    pass
+                    
+            # FALLBACK 3: Look inside header-component for h3 (some pages use this)
             if empresa == "NA/NA":
-                lines = [l.strip() for l in page_text.split('\n') if l.strip()]
-                for i, line in enumerate(lines):
-                    if 'empresa' in line.lower() or 'compañía' in line.lower():
-                        for j in range(1, 4):
-                            if i + j < len(lines):
-                                candidate = lines[i + j]
-                                if candidate and len(candidate) > 2 and len(candidate) < 100:
-                                    skip_terms = ['méxico', 'cdmx', 'postula', 'ver', 'guardar', 'compartir']
-                                    if not any(term in candidate.lower() for term in skip_terms):
-                                        empresa = candidate
-                                        break
-                        if empresa != "NA/NA":
-                            break
-        except:
-            pass
-        
+                try:
+                    header = driver.find_element(By.ID, "header-component")
+                    h3_list = header.find_elements(By.TAG_NAME, "h3")
+                    for h3 in h3_list:
+                        text = h3.text.strip()
+                        # Skip non-company text
+                        if text and len(text) > 2 and len(text) < 100:
+                            skip = ['publicado', 'hace', 'días', 'descripción', 'postulación', 'detalle']
+                            if not any(s in text.lower() for s in skip):
+                                empresa = text
+                                break
+                except:
+                    pass
+                    
+        except Exception as e:
+            debug_print(f"Error extrayendo empresa: {e}")
+
         # ===== UBICACIÓN =====
+        # Structure: h2 inside a link with href containing location
+        # Example: <h2 class="sc-jeSenI iuSNAJ">Cuauhtémoc, Distrito Federal, Mexico</h2>
         ubicacion = "México"
         try:
-            ubicaciones = ['CDMX', 'Ciudad de México', 'Jalisco', 'Nuevo León',
-                          'Monterrey', 'Guadalajara', 'Estado de México', 'Puebla',
-                          'Querétaro', 'Tijuana', 'Veracruz', 'Chihuahua', 'Sonora',
-                          'Cancún', 'Mérida', 'Aguascalientes', 'Guanajuato']
+            # Method 1: Find h2 inside location link
+            location_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/empleos.html']")
+            for link in location_links:
+                href = link.get_attribute("href") or ""
+                # Check if it's a location link (contains region/city patterns)
+                if '/en-' in href or '/empleos-' not in href or 'distrito-federal' in href or 'nuevo-leon' in href:
+                    try:
+                        h2 = link.find_element(By.TAG_NAME, "h2")
+                        text = h2.text.strip()
+                        if text and len(text) > 3:
+                            ubicacion = text
+                            break
+                    except:
+                        pass
             
-            location_selectors = [
-                "[data-testid*='location']",
-                "[class*='location']",
-                "[class*='ubicacion']",
-                "[class*='Ubicacion']",
-                "[class*='Location']",
-                "svg + span"
-            ]
-            
-            for selector in location_selectors:
+            # Method 2: Find by icon (location pin icon)
+            if ubicacion == "México":
                 try:
-                    elems = driver.find_elements(By.CSS_SELECTOR, selector)
-                    for elem in elems:
-                        text = elem.text.strip()
-                        for ub in ubicaciones:
-                            if ub.lower() in text.lower():
+                    icons = driver.find_elements(By.CSS_SELECTOR, "i[name='icon-light-location-pin']")
+                    for icon in icons:
+                        parent = icon.find_element(By.XPATH, "./..")
+                        # Look for h2 sibling
+                        try:
+                            parent2 = parent.find_element(By.XPATH, "./..")
+                            h2 = parent2.find_element(By.TAG_NAME, "h2")
+                            text = h2.text.strip()
+                            if text and len(text) > 3:
                                 ubicacion = text
                                 break
-                        if ubicacion != "México":
-                            break
-                    if ubicacion != "México":
-                        break
+                        except:
+                            pass
                 except:
-                    continue
-            
-            if ubicacion == "México":
-                for ub in ubicaciones:
-                    if ub in page_text:
-                        for line in page_text.split('\n'):
-                            if ub in line and len(line) < 100:
-                                ubicacion = line.strip()
-                                break
-                        if ubicacion != "México":
-                            break
+                    pass
+                    
         except:
             pass
         
         # ===== SALARIO =====
         salario = "No especificado"
         try:
+            page_text = driver.find_element(By.TAG_NAME, "body").text
             salary_patterns = [
                 r'\$\s*[\d,]+(?:\.\d{2})?\s*(?:-|a)\s*\$?\s*[\d,]+',
                 r'\$\s*[\d,]+\s+(?:MXN|pesos|mensual)',
-                r'[\d,]+\s*[-a]\s*[\d,]+\s+(?:MXN|pesos)',
             ]
-            
             for pattern in salary_patterns:
                 match = re.search(pattern, page_text, re.IGNORECASE)
                 if match:
                     salario = match.group(0).strip()
                     break
-            
-            if salario == "No especificado":
-                salary_selectors = [
-                    "[data-testid*='salary']",
-                    "[class*='salary']",
-                    "[class*='salario']"
-                ]
-                for selector in salary_selectors:
-                    try:
-                        elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        text = elem.text.strip()
-                        if '$' in text or 'mensual' in text.lower():
-                            salario = text
-                            break
-                    except:
-                        continue
         except:
             pass
         
         # ===== DESCRIPCIÓN =====
+        # Structure: p element that follows the "Descripción del puesto" header
+        # The header has icon: icon-light-file-text
+        # Example: <p class="sc-jHoRkZ fLFhsJ"><p>actual description text</p></p>
         descripcion = ""
         try:
-            desc_selectors = [
-                "[data-testid*='description']",
-                "[class*='description']",
-                "[class*='descripcion']",
-                "[class*='JobDescription']",
-                "article",
-                "section[class*='detail']"
-            ]
+            # Method 1: Find p element after the description header icon
+            try:
+                desc_icon = driver.find_element(By.CSS_SELECTOR, "i[name='icon-light-file-text']")
+                # Navigate up to the container, then find the next p element
+                parent = desc_icon
+                for _ in range(5):
+                    parent = parent.find_element(By.XPATH, "./..")
+                    # Look for p elements in this container
+                    p_elements = parent.find_elements(By.TAG_NAME, "p")
+                    for p in p_elements:
+                        text = p.text.strip()
+                        # Get the actual description (longer text, not headers)
+                        if len(text) > 50:
+                            descripcion = text
+                            break
+                    if descripcion:
+                        break
+            except:
+                pass
             
-            for selector in desc_selectors:
+            # Method 2: Find in section-detalle
+            if not descripcion:
                 try:
-                    elem = driver.find_element(By.CSS_SELECTOR, selector)
-                    text = elem.text.strip()
-                    if len(text) > 100:
-                        descripcion = text
-                        break
+                    section = driver.find_element(By.ID, "section-detalle")
+                    p_elements = section.find_elements(By.TAG_NAME, "p")
+                    for p in p_elements:
+                        text = p.text.strip()
+                        if len(text) > 50:
+                            # Skip boilerplate phrases
+                            if "contenido de este aviso" in text.lower():
+                                continue
+                            if "sueldo bruto" in text.lower():
+                                continue
+                            if "ningún reclutador" in text.lower():
+                                continue
+                            descripcion = text
+                            break
                 except:
-                    continue
+                    pass
             
-            # Fallback: collect paragraphs
-            if not descripcion or len(descripcion) < 100:
-                paragraphs = driver.find_elements(By.TAG_NAME, "p")
-                desc_parts = []
-                for p in paragraphs:
-                    text = p.text.strip()
-                    if len(text) > 50:
-                        desc_parts.append(text)
-                if desc_parts:
-                    descripcion = '\n\n'.join(desc_parts[:10])
-            
-            # Fallback 2: parse page text structure
-            if not descripcion or len(descripcion) < 100:
-                lines = page_text.split('\n')
-                collecting = False
-                collected_lines = []
-                
-                for line in lines:
-                    line_lower = line.lower()
-                    if any(keyword in line_lower for keyword in ['descripción', 'description', 'sobre el puesto']):
-                        collecting = True
-                        continue
-                    if collecting and any(keyword in line_lower for keyword in ['requisitos', 'postular', 'contacto']):
-                        break
-                    if collecting and line.strip():
-                        collected_lines.append(line.strip())
-                
-                if collected_lines:
-                    descripcion = '\n'.join(collected_lines[:50])
-        except:
-            pass
+            # Method 3: Find in ficha-detalle
+            if not descripcion:
+                try:
+                    ficha = driver.find_element(By.ID, "ficha-detalle")
+                    p_elements = ficha.find_elements(By.TAG_NAME, "p")
+                    for p in p_elements:
+                        text = p.text.strip()
+                        if len(text) > 50:
+                            if "contenido de este aviso" in text.lower():
+                                continue
+                            if "sueldo bruto" in text.lower():
+                                continue
+                            descripcion = text
+                            break
+                except:
+                    pass
+                    
+        except Exception as e:
+            debug_print(f"Error extrayendo descripción: {e}")
         
-        if not descripcion or len(descripcion) < 50:
+        if not descripcion:
             descripcion = f"{titulo} - {empresa} - {ubicacion}"
         
+        # Truncate if too long
         if len(descripcion) > 4000:
             descripcion = descripcion[:4000]
         
+        # Extract sections (responsabilidades/requisitos) from description
         sections = extract_sections_from_text(descripcion)
         descripcion_principal = sections["descripcion"]
         responsabilidades_text = sections["responsabilidades"]
         requisitos_text = sections["requisitos"]
+        
+        # Normalize to single line if needed
         descripcion = normalize_single_line(descripcion_principal)
-
 
         return {
             'titulo': titulo,
@@ -778,6 +783,7 @@ def extract_job_details(driver, job_url):
     except Exception as e:
         debug_print(f"Error en extract_job_details: {e}")
         return None
+
 
 def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
     """Scrape una categoría completa"""
@@ -887,8 +893,7 @@ def scrape_categoria(driver, nombre_cat, url_cat, cat_index, total_cats):
                         "hash Descripcion": hash_empleo,
                         "fecha": date.today().strftime("%d/%m/%Y")
                     })
-                    # from pprint import pprint
-                    # pprint(EMPLEOS)
+                    #print(EMPLEOS)
                     
                     HASHES_GLOBALES.add(hash_empleo)
                     total_jobs_scraped += 1
